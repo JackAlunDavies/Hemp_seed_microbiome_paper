@@ -1,58 +1,56 @@
 
 # ------------- FOLLOWING TO BE RUN IN COMMAND LINE -------------
 
-#####using Cutadapt v2.6 
-
-####read 1 of paired-end read
-
+#####using Cutadapt v2.6
+##starting with demultiplexed compressed fastq files
+##create file 'samples' with sample names based on file names
+##remove primers from forward reads (R1) and reverse reads (R2)
+##command line code as follows:
+#
 # module load anaconda/3
 # source activate cutadaptenv
+#
+#
+# ls *R1*.gz | cut -f-7 -d "_" > samples
+#
 # 
-# for dir in ./A*/
-#   
-#   do
-# 
-#   for sample in $(cat $dir/samplename)
+#
+#   for sample in $(cat $samples)
 #     
 #     do
 #     
 #     echo "On sample: $sample"
 #     cutadapt -g ^CCTACGGGNGGCWGCAG \
 #     -m 220 -M 240 --discard-untrimmed \
-#     -o $dir/${sample}_R1_trimmed.fq \
-#     $dir/${sample}_R1.fastq.gz \
-#     > $dir/cutadapt_stats_${sample}_R1.txt 2>&1 || exit 1
+#     -o ${sample}_R1_trimmed.fq \
+#     ${sample}_R1.fastq.gz \
+#     > cutadapt_stats_${sample}_R1.txt 2>&1 || exit 1
 #   
 #     done
 #   
 #   done
-
-
-###read 2 of paired-end read
-
-# module load anaconda/3
-# source activate cutadaptenv
+#
 # 
-# for dir in ./A*/
-#   
-#   do
-# 
-#   for sample in $(cat $dir/samplename)
+#   for sample in $(cat samplename)
 #     
 #     do
 #     
 #     echo "On sample: $sample"
 #     cutadapt -g ^CCTACGGGNGGCWGCAG \
 #     -m 220 -M 240 --discard-untrimmed \
-#     -o $dir/${sample}_R2_trimmed.fq \
-#     $dir/${sample}_R2.fastq.gz \
-#     > $dir/cutadapt_stats_${sample}_R2.txt 2>&1 || exit 1
+#     -o ${sample}_R2_trimmed.fq \
+#     ${sample}_R2.fastq.gz \
+#     > cutadapt_stats_${sample}_R2.txt 2>&1 || exit 1
 #   
 #     done
 #   
 #   done
 
-# ------------- FOLLOWING TO BE RUN IN R (v4.1.2)  -------------
+
+
+
+
+#------------------------------------------------------------- FOLLOWING TO BE RUN IN R -------------------------------------------------------------
 
 
 #####################################################################################
