@@ -1,0 +1,247 @@
+﻿Code,name
+A0,Lolium Gen 1 0mM
+A100,Lolium Gen 1 100mM
+A25,Lolium Gen 1 25mM
+A50,Lolium Gen 1 50mM
+C0,Oat Gen 1 0mM
+C100,Oat Gen 1 100mM
+C25,Oat Gen 1 25mM
+C50,Oat Gen 1 50mM
+CG0,Oat Gen 0
+LG0,Lolium Gen 0
+1,Scotch Berlie
+2,Sandy
+3,Firth
+4,IA914200-2
+5,Milford
+6,S 80
+7,Racoon
+8,ND9508252-9
+9,S 231
+10,Glamis (14498Cn2/1/1)
+11,Storm King
+12,Millennium
+13,SW Betania 
+14,Prolific Pfeffelbacher
+15,Kent
+16,Neklan
+17,Effektiv
+18,Chapline
+19,Moritz
+20,14519Cn3/2
+21,Neon
+22,Ascot
+23,Buggy
+24,Jaak
+25,Frigg
+26,Maverick
+27,027-SO502011Au3
+28,Max
+29,Rozmar
+30,Montrose
+31,027-SO2011Au2
+32,Elen
+33,Mortlock
+34,Svea
+35,Milo
+36,Morben
+37,Wenol
+38,Panema
+39,Victor
+40,2007-77ACn3/2/1 (Galloway)
+41,Onward
+42,Manod
+43,Mortgage Lifter
+44,CDC_Dancer
+45,05-86Cn26 (Coracle)
+46,Hen Gardie
+47,Blythe
+48,Eagle (2)
+49,Dyfed
+50,Brochan
+51,Orlando
+52,05-63Cn9/2 (Griffin)
+53,Potato
+54,Margam
+55,Pendrwm
+56,Krezus
+57,Ivory
+60,14798Cn3
+61,Altesse Jaune
+62,Monaco
+63,Mures
+64,Flamingsgold
+65,065-SO2011Au5
+66,14518Cn3/1
+67,OT3038
+68,Evora
+69,070-SO2011Au5
+70,15213Au1Au15
+71,Black Potato
+72,Yty
+73,Argentina
+74,Express
+75,Maldwyn
+76,Waverley
+77,Emrys
+78,Caron
+79,Superb
+80,Aspen
+81,Bullion
+82,Mandarin
+83,Maelor
+84,Beardless Probsteier
+85,Early Hamilton No 1
+86,Belinda
+87,Zuton
+88,Giant Yellow
+89,Marvellous
+90,Toast
+91,Melys
+92,Bountiful
+93,S 84
+94,Red Rustproof
+95,Madog
+96,Stormont Arrow
+97,Barra
+98,Goldfinder
+99,Abundance
+100,Vouto
+101,Canyon
+102,Tyrone Tawny
+103,Tam Finlay
+104,14805Cn6
+105,Scottish Chief
+106,Record
+107,Atego
+108,Amigo
+109,Alfred
+110,Maris Osprey
+111,Aaare
+112,Early Miller
+113,Mina
+114,Eneko
+115,Symphony
+116,OT3043
+117,067-SO2011Au4
+118,Genziana
+119,Elipso
+120,Ukraine Reselection
+121,Fatso
+122,Flamingsprofi
+123,Cropwell
+124,Vok
+125,Melin
+126,Aintree
+127,Black Tartay
+128,Ajax
+129,Olympic
+130,15113Au19
+131,Tammi
+132,Ligowo
+133,Summit
+134,Markant
+135,Flamingsfit
+136,Anchor
+137,Saladin
+138,Virma
+139,Sisu
+140,Crown
+141,Gandalf
+142,Eighty Day
+143,Leader
+144,Flamingskurtz
+145,Resistance
+146,Black Spring
+147,14063Cn
+148,Siluria
+149,OT3028
+150,04-01ACn1
+151,SAO51165
+152,Early Siberian
+153,SW Argyle
+154,Erwin
+155,Pol
+156,Freja
+157,Stride
+158,OT3031
+159,Castleton Sandy
+160,Black Masdeg
+161,14518Cn2/1
+162,OT3037
+163,14675Cn1/1
+164,14805Cn3
+165,Chantilly
+166,14518Cn4/3
+167,Kite
+168,SAO61196
+169,Scorpion
+170,15005Cn1/2
+171,15113Au19 (accidental duplicate)
+172,14786Cn1
+173,14516Cn4/1
+174,AC Justice
+175,Breton
+176,Aberglen
+177,Akiyutaka
+178,Yallara
+179,IA91422-2
+180,Solfi
+181,14576Cn1/1/1
+182,Mostyn
+183,15040Cn1/5
+184,Alcudia
+185,Beseler's Prolific
+186,Efesos
+187,Golden Rain
+188,Glebe
+189,Peleton
+190,021-SO2011Au16
+191,15205Au4
+192,Espresso
+193,Ryhti
+194,Envis
+195,Morlan
+196,Menai
+197,Wexford Tawny
+198,Condor
+199,Victory
+200,Castleton Potato
+201,15112Au19
+202,Supreme
+203,S 220
+204,Tardis
+205,14579Cn1/1/1
+206,Grafton
+207,Exeter
+208,Hurdal
+209,Hifi
+210,Novojatkovo
+211,Serena
+212,Gabby
+213,NO6287-0009
+214,Blyth
+215,Rhapsody
+216,SAO3079
+217,Maris elf
+218,2006-22CnI21 (Penrose)
+219,Lennon
+220,Buffalo
+H01,Markant
+H02,Bialobrzeskie 
+H03,Henola
+H04,Dioica 88
+H05,Santhica 27
+H06,Santhica 70
+H07,CS Carmagnola
+H08,Fedora 17
+H09,Uso-31
+H10,Earlina 8 FC
+H11,Orion 33
+H12,Felina 32
+H13,Futura 75
+H14,Tiborszallasi
+H15,Fibror 79
+H16,Ferimon 
+H17,Futura 83
+H18,Eletta Campana
