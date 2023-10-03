@@ -1,0 +1,22 @@
+﻿Genotype,Derived.from,Origin,Supplier,Supplier.country,Year.obtained,Country.of.origin.lit.search,Year.on.label,Flower.type,Maturity.group,Maturity.short.form,Citation
+Bialobrzeskie ,Bialobrzeskie ,Commerical supplier,PSTS,Poland,2020,Poland,2020,Monoecious,Early / early-medium,Early-medium,"(Tsaliki et al., 2021) (Cosentino et al., 2013)"
+CS Carmagnola,CS Carmagnola,Commerical supplier,CREA,Italy,2021,Italy,,Dioecious,,,"(Forapani et al., 2001)"
+Dioica 88,Dioica 88,Commerical supplier,Hempit,France,2021,France,,Dioecious,Late,Late,"(Cosentino et al., 2013)"
+Earlina 8 FC,Earlina 8 FC,Commerical supplier,Hempit,France,2021,France,,Monoecious,,,https://www.biorxiv.org/content/10.1101/2021.06.07.447363v1.supplementary-material https://www.canapuglia.it/en/earlina-8-f-c.html 
+Eletta Campana,Eletta Campana,Commerical supplier,CREA,Italy,2021,Italy,,Dioecious,,,"(Spano et al., 2021)"
+Fedora 17,Fedora 17,Commerical supplier,Hempit,France,2020,France,,Monoecious,Early / Medium-early,Early-medium,"(Tsaliki et al., 2021)(Cosentino et al., 2013) (Ingallina et al., 2020)"
+Felina 32,Felina 32,Commerical supplier,Hempit,France,2020,France,,Monoecious,Early / Medium-late,,"(Papastylianou et al., 2018) (Ingallina et al., 2020)"
+Ferimon ,Ferimon ,Commerical supplier,Hempit,France,2020,France,,Monoecious,Early / Medium,Early-medium,"(Cosentino et al., 2013) https://www.biorxiv.org/content/10.1101/2021.06.07.447363v1.supplementary-material (Ingallina et al., 2020)"
+Fibror 79,Fibror 79,Commerical supplier,Hempit,France,2021,France,,Monoecious,,,https://www.canapuglia.it/en/fibror-79.html
+Futura 75,Futura 75,Commerical supplier,Hempit,France,2020,France,2020,Monoecious,Late,Late,"(Papastylianou et al., 2018)(Cosentino et al., 2013)"
+Futura 75,Futura 75,Commerical supplier,Hempit,France,2020,France,2019,Monoecious,Late,Late,"(Papastylianou et al., 2018)(Cosentino et al., 2013)"
+Futura 83,Futura 83,Commerical supplier,Hempit,France,2021,France,,Monoecious,,,
+H20-0182,Uso-31,IBERS,,,,Ukraine,,Monoecious,Early,Early,
+H20-0411,Bialobrzeskie ,IBERS,,,,Poland,,Monoecious,Early / early-medium,Early-medium,
+Henola,Henola,Commerical supplier,PSTS,Poland,2020,Poland,2020,Monoecious,Early,Early,https://www.tandfonline.com/doi/full/10.1080/15440478.2021.1944439 http://www.agrolitpa.lt/Product/seeds/oil-seasoning-plants-etc/hemp/HENOLA/
+Markant 3,Markant 3,Commerical supplier,Vandinter,Netherlands,2021,Netherlands,2021,Monoecious,,,"(Tang et al., 2016)"
+Orion 33,Orion 33,Commerical supplier,Hempit,France,2021,France,,Monoecious,Early,Early,https://www.hemp-it.coop/en/produit/orion-33/ https://www.canapuglia.it/en/orion-33.html
+Santhica 27,Santhica 27,Commerical supplier,Hempoint,Czechia,2020,France,2020,Monoecious,Medium-late,Medium-late,
+Santhica 70,Santhica 70,Commerical supplier,Hempoint,Czechia,,France,,Monoecious,Medium-late,Medium-late,
+Tiborszallasi,Tiborszallasi,Commerical supplier,CREA,Italy,2021,Hungary,,Dioecious,Medium-late,Medium-late,"(Cosentino et al., 2013)"
+Uso-31,Uso-31,Commerical supplier,Hempit,France,2020,Ukraine,,Monoecious,Early,Early,"(Ingallina et al., 2020)"
