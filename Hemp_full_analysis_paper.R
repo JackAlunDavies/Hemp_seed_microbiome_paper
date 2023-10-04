@@ -59,20 +59,24 @@ library('ggplot2')
 library('dada2')
 library('phyloseq')
 
-samples <- scan("samples", what="character")
+#read sample names (file created in command line above)
+samples <- scan("samples", what="character") 
+
+#store names of fastq files
 forward_reads <- paste0(samples, "_R1_trimmed.fq.gz")
 reverse_reads <- paste0(samples, "_R2_trimmed.fq.gz")
 
 studyname <- paste0("Hemp")
 
-
+#to store names of filtered fastq files
 filtered_forward_reads <- paste0(samples, "_R1_filtered.fq.gz")
 filtered_reverse_reads <- paste0(samples, "_R2_filtered.fq.gz")
 
+#create function to plot read quality scores
 plotQualityProfile_custom <- function(read) {
   plotQualityProfile(read) + scale_x_continuous(breaks = seq(from = 0, to = 300, by = 10)) + theme(axis.text.x = element_text(size = 5))
 }
-
+#produce plots with custom function
 pdf_name <- paste0(studyname, "_quality_profile_forward_reads.pdf")
 pdf(pdf_name)
 lapply(forward_reads, plotQualityProfile_custom)
@@ -137,8 +141,8 @@ colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "n
 rownames(track) <- samples
 head(track)
 
+#save feature table
 saveRDS(seqtab.nochim, paste0(studyname, "_feature_table.rds"))
-save.image("HEMP_workspace_image_DADA2_toFeatureTable.rdata")
 
 
 #####################################################################################
@@ -159,17 +163,21 @@ samples <- scan("samples", what="character")
 #using the DECIPHER package
 library(DECIPHER)
 taxa <- assignTaxonomy(ft, "silva_nr99_v138.1_train_set.fa.gz", multithread=TRUE)
-
+#add species
 taxa <- addSpecies(taxa, "silva_species_assignment_v138.1.fa.gz")
+#save object
+saveRDS(taxa,"Hemp_taxa_table.rds")
 
+
+#check output
 taxa.print <- taxa 
 rownames(taxa.print) <- NULL
 head(taxa.print)
 
 save.image("Hemp_step2_taxaAssigned.rdata")
 
+#generate phylogenetic tree
 ft<-readRDS("Hemp_feature_table.rds")
-
 seqs<-getSequences(ft)
 names(seqs) <- seqs 
 alignment <- AlignSeqs(DNAStringSet(seqs), anchor=NA)
@@ -182,6 +190,7 @@ fitGTR <- update(fit, k=4, inv=0.2)
 fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
                     rearrangement = "stochastic", control = pml.control(trace = 0))
 detach("package:phangorn", unload=TRUE)
+saveRDS(fitGTR, "Hemp_phylo_tree.rds")
 
 #####################################################################################
 #####step 3 - pass to phyloseq
@@ -194,7 +203,7 @@ library('stringr')
 
 studyname<-paste0("Hemp")
 
-load("Hemp_step2_taxaAssigned.rdata")
+ft<-readRDS("Hemp_feature_table.rds")
 
 samples.out <- rownames(ft)
 samp <- sapply(strsplit(samples.out, "_"), `[`, 2)
@@ -260,12 +269,14 @@ rownames(genz.df) <- samples.out #this doesn't work with just one sample
 colnames(genz.df)
 
 #creating phyloseq object from DADA2 outputs
+taxa<-readRDS("Hemp_taxa_table.rds")
 fitGTR<-readRDS("Hemp_phylo_tree.rds")
 ps <- phyloseq(otu_table(ft, taxa_are_rows=FALSE), 
                sample_data(genz.df), 
                tax_table(taxa), 
                phy_tree(fitGTR$tree))
-
+#store DNA sequences in the refseq slot of the phyloseq object
+  #and then rename our taxa to ASV1, ASV2 etc
 dna <- Biostrings::DNAStringSet(taxa_names(ps))
 names(dna) <- taxa_names(ps)
 ps <- merge_phyloseq(ps, dna)
@@ -274,12 +285,12 @@ ps
 
 
 #check changes in read counts after chloroplast/mitochondria removals
-#remove unused samples
+#remove samples that are removed at a later stage - Futura 75 and Santhica 70
 used_samples<-rownames(sample_data(ps)[-which(sample_data(ps)$Genotype_name == "Futura 75" | sample_data(ps)$Genotype_name == "Santhica 70" | sample_data(ps)$Sample_or_control == "Control"),])
 ps3<-prune_samples(used_samples, ps)
 #remove from ps3
-ps.no.c<-subset_taxa(ps3, !Order=="Chloroplast")
-ps.no.c.m<-subset_taxa(ps.no.c, !Family=="Mitochondria")
+ps.no.c<-subset_taxa(ps3, (Order!="Chloroplast") | is.na(Order))
+ps.no.c.m<-subset_taxa(ps.no.c, (Family!="Mitochondria") | is.na(Family))
 ps.rc<-as.data.frame(sample_sums(ps3)); colnames(ps.rc)<-"read.count"
 ps.rc$read.count
 #plot
@@ -306,8 +317,8 @@ mean(ps.rc$read.count)
 mean(ps.no.c.rc$read.count)
 mean(ps.no.c.m.rc$read.count)
 mean(ps.no.c.m.rc$read.count)
-mean((ps.rc$read.count - ps.no.c.rc)$read.count/ps.rc$read.count) #40.3% reads are chloroplasts
-mean((ps.no.c.rc$read.count - ps.no.c.m.rc$read.count)/ps.rc$read.count) #9.8% reads are mitochondria
+mean((ps.rc$read.count - ps.no.c.rc$read.count)/ps.rc$read.count) #mean reads that are chloroplasts
+mean((ps.no.c.rc$read.count - ps.no.c.m.rc$read.count)/ps.rc$read.count) #mean reads that are mitochondria
 
 #remove chloroplasts before saving the phyloseq object
 ps.no.c<-subset_taxa(ps, !Order=="Chloroplast")
@@ -317,10 +328,8 @@ ps.no.c.m<-subset_taxa(ps.no.c, !Family=="Mitochondria")
 #continue with organelles removed
 ps<-ps.no.c.m
 
-#to save just the phyloseq object, as an R data file
+#save phyloseq object
 saveRDS(ps, paste0("phyloseq_object_", studyname, ".rds"))
-
-save.image("HEMP_workspace_image_step3.rdata")
 
 #####################################################################################
 #####step 4 - remove contaminants
@@ -330,20 +339,21 @@ library(phyloseq)
 library(ggplot2)
 library(microViz)
 
-load("HEMP_workspace_image_step3.rdata")
+readRDS("phyloseq_object_Hemp.rds")
 
-###decontam
+###identify contaminants using decontam package's prevalence method
+#visualise library sizes - group controls seperately
 df <- as.data.frame(sample_data(ps)) 
 df$LibrarySize <- sample_sums(ps)
 df <- df[order(df$LibrarySize),]
 df$Index <- seq(nrow(df))
 ggplot(data=df, aes(x=Index, y=LibrarySize, color=Sample_or_control)) + geom_point()
-
+#identify contaminant based on prevalence in samples and prevalence in negative controls
 sample_data(ps)$is.neg <- sample_data(ps)$Sample_or_control == "Control"
 contamdf.prev <- isContaminant(ps, method="prevalence", neg="is.neg")
-table(contamdf.prev$contaminant)
+table(contamdf.prev$contaminant) #number of contaminants
 head(which(contamdf.prev$contaminant))
-
+#plot prevalence in samples vs prevalence in controls
 ps.pa <- transform_sample_counts(ps, function(abund) 1*(abund>0))
 ps.pa.neg <- prune_samples(sample_data(ps.pa)$Sample_or_control == "Control", ps.pa)
 ps.pa.pos <- prune_samples(sample_data(ps.pa)$Sample_or_control == "True Sample", ps.pa)
@@ -352,24 +362,18 @@ df.pa <- data.frame(pa.pos=taxa_sums(ps.pa.pos), pa.neg=taxa_sums(ps.pa.neg),
 ggplot(data=df.pa, aes(x=pa.neg, y=pa.pos, color=contaminant)) + geom_point() +
   xlab("Prevalence (Negative Controls)") + ylab("Prevalence (True Samples)")
 
-ps.cont <- prune_taxa(contamdf.prev$contaminant, ps) #get contaminants
-length(as.data.frame(tax_table(ps.cont))$Genus)
-unique(as.data.frame(tax_table(ps.cont))$Genus)
-
+#generate phyloseq object of contaminants only
 contams<-rownames(contamdf.prev[which(contamdf.prev$contaminant),])
-notcontams<-rownames(contamdf.prev[-which(contamdf.prev$contaminant),])
-
 cps <- prune_taxa(contams, ps)
+
+#generate phyloseq object excluding contaminants for further analysis
+notcontams<-rownames(contamdf.prev[-which(contamdf.prev$contaminant),])
 ps <- prune_taxa(notcontams, ps)
-
+#remove controls 
 ps <- ps %>% ps_filter(Sample_or_control == "True Sample")
-
-ps
-
-###check (and remove if needed) taxa with NA at phylum level
-fps <- subset_taxa(ps, Phylum != "NA")
-
-saveRDS(fps, "Hemp_ps_processed_step4_decontam_prevalence.rds")
+#check (and remove if needed) taxa with NA at phylum level
+ps <- subset_taxa(ps, Phylum != "NA")
+saveRDS(ps, "Hemp_ps_processed_step4_decontam_prevalence.rds")
 
 #obtain list of asvs in >0 controls but not removed as contaminants
 df.pa
@@ -380,7 +384,7 @@ nps<-prune_taxa(npa.asvs, fps) #keep only non-contaminant that are present in >0
 Genos_toRemove<-c("Futura 75", "Santhica 70")
 Samples_toRemove<-rownames(sample_data(nps)[which(sample_data(nps)$Genotype_name %in% Genos_toRemove)],)
 nps<-prune_samples(!sample_names(nps) %in% Samples_toRemove, nps)
-nps #58  ASVs
+nps #number of taxa is number of ASVs
 nps.glom<-tax_glom(nps, taxrank = "Genus", NArm = FALSE) 
 df.tt<-as.data.frame(tax_table(nps.glom))
 sort(unique(df.tt$Genus)) #genera
@@ -394,7 +398,7 @@ write.xlsx(npsdf, "NonContaminants_butInControls_table.xlsx")
 
 
 #look at contaminants
-cps 
+cps #number of taxa is number of ASVs
 cps.glom<-tax_glom(cps, taxrank = "Genus", NArm = FALSE) 
 df.ctt<-as.data.frame(tax_table(cps.glom))
 sort(unique(df.ctt$Genus)) #genera
@@ -405,6 +409,7 @@ cpsdf<-merge(cpstt, cpsrs, by = "row.names")
 colnames(cpsdf)<-c("ASV","Kingdom", "Phylum",  "Class",   "Order",   "Family",  "Genus",   "Species",  "Sequence" )
 library(openxlsx)
 write.xlsx(cpsdf, "Contaminants_table.xlsx")
+
 
 
 #####################################################################################
@@ -419,9 +424,7 @@ library(openxlsx)
 ps<-readRDS("Hemp_ps_processed_step4_decontam_prevalence.rds")
 studyname <- paste0("Hemp")
 
-ps
-
-###read counts
+###analyse read counts
 ps.rc<-as.data.frame(sample_sums(ps)); colnames(ps.rc)<-"read.count"
 ps.rc$Samp <- rownames(ps.rc)
 rownames(ps.rc)<-NULL
@@ -433,11 +436,6 @@ ggplot(data = ps.rc, aes(x=reorder(Sample, -read.count), y=read.count)) +
   geom_bar(stat="identity") +
   ggtitle("Hemp - Read counts per sample") +
   scale_x_discrete(labels = NULL, breaks = NULL) + labs(x = "")
-ggplot(data = ps.rc, aes(x=reorder(Sample, -read.count), y=read.count)) + 
-  geom_bar(stat="identity") +
-  ggtitle("Hemp - Read counts per sample") +
-  scale_x_discrete(labels = NULL, breaks = NULL) + labs(x = "") +
-  coord_cartesian(ylim=c(0, 1000))
 #by genotype
 ggplot(data = ps.rc, aes(x=Sample_number, y=read.count)) + 
   geom_bar(stat="identity") +
@@ -446,22 +444,16 @@ ggplot(data = ps.rc, aes(x=Sample_number, y=read.count)) +
   scale_x_discrete(labels = NULL, breaks = NULL) + labs(x = "")
 ggsave(filename = "Hemp_readcounts_by_genotype.png", plot = last_plot(), device = "png", units = "cm", width = 100, height = 20)
 
-ps.rc[which(ps.rc$read.count<20000),]$Genotype
-
 ###H06 and H13 have much lower read counts across all replicates than other genotypes
 #remove these to improve data quality
-sample_data(ps)$Genotype_name
-ps
 ps<-ps %>% ps_filter(!Genotype == "H06") %>% ps_filter(!Genotype == "H13")
-ps
-sample_data(ps)$Genotype_name
 
 ###filter by prevalence
 ##remove taxa appearing in <3 samples 
 ps
 ps <- filter_taxa(ps, function (x) {sum(x > 0) > 2}, prune=TRUE)
 
-#obtain stats on total, median and mean read counts
+###obtain stats on total, median and mean read counts
 ps.rc2<-as.data.frame(sample_sums(ps)); colnames(ps.rc2)<-"read.count"
 ps.rc2$Samp <- rownames(ps.rc2)
 rownames(ps.rc2)<-NULL
@@ -473,6 +465,7 @@ sum(ps.rc2$read.count)
 median(ps.rc2$read.count)
 mean(ps.rc2$read.count) 
 
+###save phyloseq object that will be used for all subsequent analysis
 saveRDS(ps, "Hemp_ps_processed_step5_readyForAnalysis.rds")
 
 #produce list of ASVs
@@ -522,13 +515,14 @@ write.xlsx(cf, "ASV_final_dataset_table.xlsx")
 
 
 #####################################################################################
-#####step 5 - main data analysis
+#####step 6 - main data analysis
 ############################################################
-####step 5.1 - summary stats on phyla and genera
+####step 6.1 - summary stats on phyla and genera
 library(microbiome)  
 library(phyloseq)
 library(ggplot2)
 library(dplyr)
+options(scipen=999)
 
 ##phyla
 ps<-readRDS("Hemp_ps_processed_step5_readyForAnalysis.rds")
@@ -536,11 +530,11 @@ ps.glom.phyla<-tax_glom(ps, taxrank = "Phylum", NArm = FALSE) #no removal of ASV
 #mean abundances
 ps.t.p <- transform_sample_counts(ps.glom.phyla, function(OTU) OTU/sum(OTU))
 mps.t.p<-psmelt(ps.t.p)
-sum(mps.t.p$Abundance) #as expected
-mean(mps.t.p[which(mps.t.p$Phylum=="Proteobacteria"),]$Abundance) 
-mean(mps.t.p[which(mps.t.p$Phylum=="Bacteroidota"),]$Abundance) 
-mean(mps.t.p[which(mps.t.p$Phylum=="Firmicutes"),]$Abundance) 
-mean(mps.t.p[which(mps.t.p$Phylum=="Actinobacteriota"),]$Abundance)
+mps.t.p<-mps.t.p[c(19, 3)]
+#means
+mps.t.p.mean<-aggregate(mps.t.p['Abundance'], by=mps.t.p['Phylum'], mean)
+mps.t.p.mean<-mps.t.p.mean[order(-mps.t.p.mean$Abundance),]
+mps.t.p.mean
 #samples where each phylum is most abundant phylum
 ps.glom.phyla<-tax_glom(ps, taxrank = "Phylum", NArm = FALSE) #no removal of ASVs not classifed to Phylum; follows Wallen 2021
 mps.t.p<-psmelt(ps.glom.phyla)
@@ -679,7 +673,7 @@ median(df$Abudance_where_present)
 
 
 ############################################################
-####step 5.2 - taxa barplots
+####step 6.2 - taxa barplots
 library(phyloseq)
 library(ggplot2)
 library(cowplot)
@@ -697,14 +691,13 @@ ps<-readRDS("Hemp_ps_processed_step5_readyForAnalysis.rds")
 #transform
 ps.t.p <- transform_sample_counts(ps.glom.phyla, function(OTU) OTU/sum(OTU))
 #set colours
-getPalette = colorRampPalette(brewer.pal(4, "Dark2"))
-set.seed(112)
-p.df<-as.data.frame(unique(tax_table(ps.t.p)[,"Phylum"]))
-p.df<-p.df[sample(nrow(p.df)),]
-phList = p.df 
-PhPalette = getPalette(length(phList))
-names(PhPalette) = phList
-legend.order<-sort(phList)
+PhPalette<-c()
+PhPalette["Actinobacteriota"] <- "#D55E00"
+PhPalette["Bacteroidota"] <- "#CC79A7"
+PhPalette["Cyanobacteria"] <- "#F0E442"
+PhPalette["Firmicutes"] <- "#56B4E9"
+PhPalette["Proteobacteria"] <- "#009E73"
+legend.order<-sort(names(PhPalette))
 #prepare data frame
 mps.t.p<-psmelt(ps.t.p)
 mps.t.p[which(mps.t.p$Genotype_name == "CS Carmagnola"),]$Genotype_name <- "CS"
@@ -798,7 +791,7 @@ ggsave("Hemp_Genus_barplot_top10_nested_facets.png", plot = hg2, device = png, h
 
 
 ############################################################
-####step 5.3 - alpha diversity analyses
+####step 6.3 - alpha diversity analyses
 
 library(phyloseq)
 library(ggplot2)
@@ -824,11 +817,11 @@ ggsave("Hemp_diversity_alpha_rarefaction.png", plot = p, device = png, height = 
 
 #obtain min read count to inform rarefication
 ps.rc<-as.data.frame(sample_sums(ps)); colnames(ps.rc)<-"read.count"
-min(ps.rc$read.count) #21660
+min(ps.rc$read.count) #21667
 hist(ps.rc$read.count)
 
 #rarefy to min read count
-rps<-rarefy_even_depth(ps, replace = FALSE, sample.size = 21660, rngseed = 100)
+rps<-rarefy_even_depth(ps, replace = FALSE, sample.size = 21667, rngseed = 100)
 
 #calculate ASV richness and Shannon index
 table_rps <- estimate_richness(rps, split = TRUE, measures = c("Observed", "Shannon"))
@@ -875,23 +868,27 @@ mc = glht(model,
           mcp(Genotype_name = "Tukey"))
 mcs = summary(mc, test=adjusted("BH"))
 mcs
+#obtain CLDs
 model.sigs<-cld(mcs,
                 level=0.05,
                 decreasing=FALSE) 
 df.cld<-as.data.frame(model.sigs$mcletters$Letters); colnames(df.cld)<-"Letters"
 df.cld$Genotype_name <- rownames(df.cld); rownames(df.cld) <- NULL; df.cld 
 richness_letters<-df.cld$Letters
-Data2 = summarySE(data=data_rps2,
+#obtain standard errors
+Data1 = summarySE(data=data_rps2,
                   "Observed",
                   groupvars="Genotype_name",
                   conf.interval = 0.95)
-Tabla = as.table(Data2$Observed)         
-rownames(Tabla) = Data2$Genotype_name
+Tabla = as.table(Data1$Observed)         
+rownames(Tabla) = Data1$Genotype_name
 Tabla
 offset.v = -2.0     # offsets for CLDs
 offset.h = 0.5
-Data2$Supplier<-data_rps2[match(paste(Data2$Genotype_name),paste(data_rps2$Genotype_name)),]$Supplier
-ggobs<-ggplot(Data2,
+#obtain info on supplier
+Data1$Supplier<-data_rps2[match(paste(Data1$Genotype_name),paste(data_rps2$Genotype_name)),]$Supplier
+#plot
+ggobs<-ggplot(Data1,
               aes(x=reorder(Genotype_name,-Observed,FUN = mean), y = Observed, fill = Supplier,
                   ymax=90, ymin=0))+
   geom_bar(stat="identity",
@@ -946,6 +943,7 @@ shannon_letters<-cldList(comparison = dt$res$Comparison,
                          p.value    = dt$res$P.adj,
                          threshold  = 0.05)
 shannon_letters<-shannon_letters$Letter
+#get standard errors
 Data3 = summarySE(data=data_rps,
                   "Shannon",
                   groupvars="Genotype_name",
@@ -953,9 +951,11 @@ Data3 = summarySE(data=data_rps,
 Tabla3 = as.table(Data3$Shannon)         
 rownames(Tabla3) = Data3$Genotype_name
 Tabla3
-offset.v = -2.0     #CLDs
+offset.v = -2.0     #offsets for CLDs
 offset.h = 0.5
+#obtain info on supplier
 Data3$Supplier<-data_rps[match(paste(Data3$Genotype_name),paste(data_rps$Genotype_name)),]$Supplier
+#plot
 ggshan<-ggplot(Data3,
                aes(x=reorder(Genotype_name,-Shannon,FUN = mean), y = Shannon, fill = Supplier,
                    ymax=3, ymin=0))+
@@ -982,6 +982,7 @@ ggsave("Hemp_diversity_alpha_Shannon_ASV.png", plot = last_plot(), device = png,
 
 ###Faith's phylogenetic diversity
 ###stats tests - anova
+#calculate Faith's PD
 table_PD<-estimate_pd(rps)
 pdsd <- cbind(sample_data(rps), table_PD)
 pdsd[which(pdsd$Genotype_name=="CS Carmagnola"),]$Genotype_name <- "CS"
@@ -1001,29 +1002,33 @@ order_pd<- pdsd %>%
   group_by(Genotype_name) %>%
   dplyr::summarize(Mean.PD = mean(PD, na.rm=FALSE))
 list_order_pd<-order_pd[order(order_pd$Mean.PD, decreasing = TRUE),]$Genotype_name; list_order_pd
-#change factor level order
+#change factor level order - to ensure CLDs are alphabetical
 pdsd2 <- pdsd
 pdsd2$Genotype_name<-as.factor(pdsd2$Genotype_name)
 pdsd2$Genotype_name<-factor(pdsd2$Genotype_name, levels = list_order_pd)
 model<-lm(PD ~ Genotype_name, data=pdsd2)
 anova(model)
-summary(model) 
+summary(model)
+#pairwise comparisons
 mc = glht(model,
           mcp(Genotype_name = "Tukey"))
 mcs = summary(mc, test=adjusted("BH"))
 mcs
+#obtain CLDs
 model.sigs<-cld(mcs,
                 level=0.05,
                 decreasing=FALSE) 
 df.cld<-as.data.frame(model.sigs$mcletters$Letters); colnames(df.cld)<-"Letters"
 df.cld$Genotype_name <- rownames(df.cld); rownames(df.cld) <- NULL; df.cld 
 pd_letters<-df.cld$Letters
+#obtain standard errors
 Data4 = summarySE(data=pdsd2,
                   "PD",
                   groupvars="Genotype_name",
                   conf.interval = 0.95)
+#obtain info on supplier
 Data4$Supplier<-pdsd2[match(paste(Data4$Genotype_name),paste(pdsd2$Genotype_name)),]$Supplier
-Data4$Genotype_name
+#plot
 ggpd<-ggplot(Data4, aes(x = reorder(Genotype_name,-PD, FUN = mean), y = PD, fill = Supplier,
                         ymax = 12, ymin = 0)) + 
   geom_bar(stat="identity",
@@ -1051,7 +1056,7 @@ ggsave("Hemp_diversity_alpha_richnessShannonPD.png", plot = last_plot(), device 
 
 
 ############################################################
-####step 5.4 - beta diversity analyses
+####step 6.4 - beta diversity analyses
 library(phyloseq)
 library(ggplot2)
 library(cowplot)
@@ -1067,8 +1072,6 @@ ps
 rps <- microbiome::transform(ps, "compositional")
 #McKnight et al. reports that proportions work best for these analyses
   #DOI: 10.1111/2041-210X.13115
-  
-ord.rps <- ordinate(rps, "PCoA", "bray")
 
 ##PERMANOVA - supplier and genotype
 all_ps_bray <- phyloseq::distance(rps, method = "bray") 
