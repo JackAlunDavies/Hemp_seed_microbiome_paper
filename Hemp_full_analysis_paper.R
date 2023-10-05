@@ -15,36 +15,36 @@
 #
 # 
 #
-#   for sample in $(cat $samples)
-#     
-#     do
-#     
-#     echo "On sample: $sample"
-#     cutadapt -g ^CCTACGGGNGGCWGCAG \
-#     -m 220 -M 240 --discard-untrimmed \
-#     -o ${sample}_R1_trimmed.fq \
-#     ${sample}_R1.fastq.gz \
-#     > cutadapt_stats_${sample}_R1.txt 2>&1 || exit 1
-#   
-#     done
-#   
-#   done
-#
+# for sample in $(cat $samples)
 # 
-#   for sample in $(cat samplename)
-#     
-#     do
-#     
-#     echo "On sample: $sample"
-#     cutadapt -g ^CCTACGGGNGGCWGCAG \
-#     -m 220 -M 240 --discard-untrimmed \
-#     -o ${sample}_R2_trimmed.fq \
-#     ${sample}_R2.fastq.gz \
-#     > cutadapt_stats_${sample}_R2.txt 2>&1 || exit 1
-#   
-#     done
-#   
+#   do
+# 
+#   echo "On sample: $sample"
+#   cutadapt -g ^CCTACGGGNGGCWGCAG \
+#   -m 220 -M 240 --discard-untrimmed \
+#   -o ${sample}_R1_trimmed.fq \
+#   ${sample}_R1.fastq.gz \
+#   > cutadapt_stats_${sample}_R1.txt 2>&1 || exit 1
+# 
 #   done
+# 
+# done
+# 
+# 
+# for sample in $(cat samplename)
+# 
+#   do
+# 
+#   echo "On sample: $sample"
+#   cutadapt -g ^CCTACGGGNGGCWGCAG \
+#   -m 220 -M 240 --discard-untrimmed \
+#   -o ${sample}_R2_trimmed.fq \
+#   ${sample}_R2.fastq.gz \
+#   > cutadapt_stats_${sample}_R2.txt 2>&1 || exit 1
+# 
+#   done
+# 
+# done
 
 
 
@@ -311,7 +311,7 @@ g3<-ggplot(data = ps.no.c.m.rc, aes(y=read.count)) +
   ggtitle("Chloroplasts and mitochondria removed"); g3
 library(cowplot)
 plot_grid(g1, g2, g3, ncol = 3)
-ggsave("Read_count_after_organelle_removals.png", plot = last_plot(), device = "png", units = "cm", width = 32, height = 12)
+#ggsave("Read_count_after_organelle_removals.png", plot = last_plot(), device = "png", units = "cm", width = 32, height = 12)
 #stats
 mean(ps.rc$read.count)
 mean(ps.no.c.rc$read.count)
@@ -321,9 +321,9 @@ mean((ps.rc$read.count - ps.no.c.rc$read.count)/ps.rc$read.count) #mean reads th
 mean((ps.no.c.rc$read.count - ps.no.c.m.rc$read.count)/ps.rc$read.count) #mean reads that are mitochondria
 
 #remove chloroplasts before saving the phyloseq object
-ps.no.c<-subset_taxa(ps, !Order=="Chloroplast")
+ps.no.c<-subset_taxa(ps, (Order!="Chloroplast") | is.na(Order))
 #and remove mitochondria
-ps.no.c.m<-subset_taxa(ps.no.c, !Family=="Mitochondria")
+ps.no.c.m<-subset_taxa(ps.no.c, (Family!="Mitochondria") | is.na(Family))
 
 #continue with organelles removed
 ps<-ps.no.c.m
@@ -339,7 +339,7 @@ library(phyloseq)
 library(ggplot2)
 library(microViz)
 
-readRDS("phyloseq_object_Hemp.rds")
+ps<-readRDS("phyloseq_object_Hemp.rds")
 
 ###identify contaminants using decontam package's prevalence method
 #visualise library sizes - group controls seperately
@@ -380,7 +380,7 @@ df.pa
 npa<-df.pa[-which(df.pa$contaminant),] #remove contaminants
 npa<-npa[which(npa$pa.neg>0 & npa$pa.pos>0),] #remove ASVs present only in controls
 npa.asvs<-rownames(npa)
-nps<-prune_taxa(npa.asvs, fps) #keep only non-contaminant that are present in >0 control
+nps<-prune_taxa(npa.asvs, ps) #keep only non-contaminant that are present in >0 control
 Genos_toRemove<-c("Futura 75", "Santhica 70")
 Samples_toRemove<-rownames(sample_data(nps)[which(sample_data(nps)$Genotype_name %in% Genos_toRemove)],)
 nps<-prune_samples(!sample_names(nps) %in% Samples_toRemove, nps)
@@ -442,7 +442,7 @@ ggplot(data = ps.rc, aes(x=Sample_number, y=read.count)) +
   facet_grid(~Genotype) +
   ggtitle("Hemp - Read counts per sample") +
   scale_x_discrete(labels = NULL, breaks = NULL) + labs(x = "")
-ggsave(filename = "Hemp_readcounts_by_genotype.png", plot = last_plot(), device = "png", units = "cm", width = 100, height = 20)
+#ggsave(filename = "Hemp_readcounts_by_genotype.png", plot = last_plot(), device = "png", units = "cm", width = 100, height = 20)
 
 ###H06 and H13 have much lower read counts across all replicates than other genotypes
 #remove these to improve data quality
@@ -591,7 +591,7 @@ ggplot(df, aes(x=No_taxa, y=Mean_proportion_of_community_represented)) +
   xlab("Number of genera") +
   ylab("Mean proportion of community\nrepresented by subset of genera (%)") +
   scale_y_continuous(labels = function(x) x*100, limits = c(0.2,1), breaks = seq(0.2, 1, by = 0.2)) 
-ggsave("Hemp_analysis_representation_by_number_of_top_taxa_by_mean_abundance.png", plot = last_plot(), device = "png", units = "cm", width = 15, height = 10)
+#ggsave("Hemp_analysis_representation_by_number_of_top_taxa_by_mean_abundance.png", plot = last_plot(), device = "png", units = "cm", width = 15, height = 10)
 ##stats on top 3 genera
 top3<-p.mm$OTU[1:3]
 g.ps.core<-prune_taxa(top3, ps.glom)
@@ -724,7 +724,7 @@ hp2<-ggplot(mps.t.p, aes(fill=Phylum, x=Sample_number, y=Abundance)) +
   theme(axis.title = element_text(size=14, face = "bold")) +
   theme(axis.text = element_text(size=12)) +  
   guides(fill=guide_legend(ncol=2)); hp2
-ggsave("Hemp_Phylum_barplot.png", plot = hp2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+#ggsave("Hemp_Phylum_barplot.png", plot = hp2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 ###plot top 10 most abundant genera
 ps.t <- transform_sample_counts(ps.glom, function(OTU) OTU/sum(OTU))
@@ -787,7 +787,7 @@ hg2<-ggplot(mps.t, aes(fill=Genus, x=Sample_number, y=Abundance)) +
   theme(axis.title = element_text(size=14, face = "bold")) +
   theme(axis.text = element_text(size=12)) +
   guides(fill=guide_legend(ncol=3)); hg2
-ggsave("Hemp_Genus_barplot_top10_nested_facets.png", plot = hg2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+#ggsave("Hemp_Genus_barplot_top10_nested_facets.png", plot = hg2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
 ############################################################
@@ -813,7 +813,7 @@ ps<-readRDS("Hemp_ps_processed_step5_readyForAnalysis.rds")
 library(phyloseq.extended)
 p <- ggrare(ps, step = 1000, color = "Genotype_name", se = FALSE)  +
   ylab("ASV richness"); p #ASV richness
-ggsave("Hemp_diversity_alpha_rarefaction.png", plot = p, device = png, height = 15, width = 20, units = "cm", limitsize = TRUE)
+#ggsave("Hemp_diversity_alpha_rarefaction.png", plot = p, device = png, height = 15, width = 20, units = "cm", limitsize = TRUE)
 
 #obtain min read count to inform rarefication
 ps.rc<-as.data.frame(sample_sums(ps)); colnames(ps.rc)<-"read.count"
@@ -833,7 +833,7 @@ rps_obs_hist <- ggplot(data = data_rps, aes(x = Observed)) +
   xlab("Observed ASVs") +
   ylab("# samples") +
   ggtitle("ASV richness per sample"); rps_obs_hist
-ggsave("Hemp_diversity_alpha__observedASVs_histogram.png", plot = rps_obs_hist, device = "png", units = "cm", height = 10, width = 10)
+#ggsave("Hemp_diversity_alpha__observedASVs_histogram.png", plot = rps_obs_hist, device = "png", units = "cm", height = 10, width = 10)
 #summary stats on ASV richness and Shannon index
 median(data_rps$Observed); mean(data_rps$Observed); min(data_rps$Observed); max(data_rps$Observed)
 median(data_rps$Shannon); mean(data_rps$Shannon); min(data_rps$Shannon); max(data_rps$Shannon)
@@ -908,7 +908,7 @@ ggobs<-ggplot(Data1,
         legend.text = element_text(size = 12)) +
   scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
   scale_y_continuous(breaks = seq(0, 200, 20), expand = expansion(mult = c(0,0.15))); ggobs
-ggsave("Hemp_diversity_alpha_richness_ASV.png", plot = last_plot(), device = png, height = 10, width = 15, units = "cm", limitsize = TRUE)
+#ggsave("Hemp_diversity_alpha_richness_ASV.png", plot = last_plot(), device = png, height = 10, width = 15, units = "cm", limitsize = TRUE)
 
 ###shannons index
 ##stats tests
@@ -977,7 +977,7 @@ ggshan<-ggplot(Data3,
         legend.text = element_text(size = 12)) +
   scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
   scale_y_continuous(breaks = seq(0, 3.5, 0.5), expand = expansion(mult = c(0,0.15))); ggshan
-ggsave("Hemp_diversity_alpha_Shannon_ASV.png", plot = last_plot(), device = png, height = 15, width = 12, units = "cm", limitsize = TRUE)
+#ggsave("Hemp_diversity_alpha_Shannon_ASV.png", plot = last_plot(), device = png, height = 15, width = 12, units = "cm", limitsize = TRUE)
 
 
 ###Faith's phylogenetic diversity
@@ -1048,11 +1048,11 @@ ggpd<-ggplot(Data4, aes(x = reorder(Genotype_name,-PD, FUN = mean), y = PD, fill
         legend.text = element_text(size = 12)) +
   scale_y_continuous(breaks = seq(0, 20, 2), expand = expansion(mult = c(0,0.15))) +
   scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")); ggpd
-ggsave("Hemp_diversity_alpha_PD.png", plot = last_plot(), device = png, height = 15, width = 12, units = "cm", limitsize = TRUE)
+#ggsave("Hemp_diversity_alpha_PD.png", plot = last_plot(), device = png, height = 15, width = 12, units = "cm", limitsize = TRUE)
 
 ###plot all diversity metrics together
 plot_grid(ggobs, ggshan, ggpd, ncol = 1, scale = 0.90, labels = "auto", label_size = 14, label_fontface = "bold")
-ggsave("Hemp_diversity_alpha_richnessShannonPD.png", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+#ggsave("Hemp_diversity_alpha_richnessShannonPD.png", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
 ############################################################
