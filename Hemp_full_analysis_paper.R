@@ -502,14 +502,9 @@ con<-read.xlsx("Contaminants_table.xlsx")
 con$Sequence<-NULL
 con$In.negative.control<-""
 con$Contaminant<-"Yes"
-colnames(final_psdf)
-colnames(con)
 cf<-rbind(final_psdf, con)
-cf$In.negative.control
-colnames(cf)
 cf<-cf[,c(1:8,10,9)]
 table(cf$Contaminant)
-cf[which(cf$Contaminant=="Yes"),]$In.negative.control
 names(cf)[names(cf) == 'In.negative.control'] <- 'Present in a negative control'
 write.xlsx(cf, "ASV_final_dataset_table.xlsx")
 
@@ -590,7 +585,8 @@ ggplot(df, aes(x=No_taxa, y=Mean_proportion_of_community_represented)) +
   geom_point() +
   xlab("Number of genera") +
   ylab("Mean proportion of community\nrepresented by subset of genera (%)") +
-  scale_y_continuous(labels = function(x) x*100, limits = c(0.2,1), breaks = seq(0.2, 1, by = 0.2)) 
+  scale_y_continuous(labels = function(x) x*100, limits = c(0.2,1), breaks = seq(0.2, 1, by = 0.2)) +
+  scale_x_continuous(limits = c(0,100, breaks = seq(0,100,by=20)))
 #ggsave("Hemp_analysis_representation_by_number_of_top_taxa_by_mean_abundance.png", plot = last_plot(), device = "png", units = "cm", width = 15, height = 10)
 ##stats on top 3 genera
 top3<-p.mm$OTU[1:3]
