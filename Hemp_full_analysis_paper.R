@@ -610,7 +610,20 @@ arrange(gcpc, desc(Prop.mean))
 #samples where top 3 make up >50% of community
 gcpBIN<-g.core.prop%>%mutate(Prop.bins = cut(Proportion.represented, breaks = c(-Inf,0.501,Inf)))
 table(gcpBIN$Prop.bins) 
+
 ##look at how reads assigned to each common genus are distributed across ASVs
+#most abundant ASVs
+mrel <- psmelt(ps.rel)
+mrel.means<- mrel %>%
+  group_by(OTU) %>%
+  dplyr::summarize(Mean = mean(Abundance, na.rm=FALSE))
+sorted.ASVmeans<-mrel.means[order(mrel.means$Mean, decreasing = TRUE),]
+print(sorted.ASVmeans, n=15)
+#look at how reads assigned to each common genus are distributed across ASVs
+#assign genus to ASVs
+sorted.ASVmeans$Genus<-mrel[match(paste(sorted.ASVmeans$OTU),paste(mrel$OTU)),"Genus"]
+print(sorted.ASVmeans, n=20)
+#look at proportion of each common genus' reads that are contibuted by each ASVs 
 flavoASVs<-sorted.ASVmeans[which(sorted.ASVmeans$Genus=="Flavobacterium"),]; flavoASVs
 flavoASVs$Mean[1]/sum(flavoASVs$Mean) #proporton of all Flavobacterium reads represented by most abundant ASV
 pseudoASVs<-sorted.ASVmeans[which(sorted.ASVmeans$Genus=="Pseudomonas"),]; pseudoASVs
@@ -631,7 +644,8 @@ chrysASVs<-sorted.ASVmeans[which(sorted.ASVmeans$Genus=="Chryseobacterium"),]; c
 chrysASVs$Mean[1]/sum(chrysASVs$Mean) 
 bacASVs<-sorted.ASVmeans[which(sorted.ASVmeans$Genus=="Bacillus"),]; bacASVs
 bacASVs$Mean[1]/sum(bacASVs$Mean) 
-##look at genera that are specific to one, two or three cultivars (and present in all replicates of a cultivar)
+
+###look at genera that are specific to one, two or three cultivars (and present in all replicates of a cultivar)
 ps.rel <- microbiome::transform(ps, "compositional")
 ps.glom<-tax_glom(ps.rel, taxrank = "Genus", NArm = FALSE) 
 mmps<-psmelt(ps.glom)
@@ -720,70 +734,69 @@ hp2<-ggplot(mps.t.p, aes(fill=Phylum, x=Sample_number, y=Abundance)) +
   theme(axis.title = element_text(size=14, face = "bold")) +
   theme(axis.text = element_text(size=12)) +  
   guides(fill=guide_legend(ncol=2)); hp2
-#ggsave("Hemp_Phylum_barplot.png", plot = hp2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+#ggsave("Figure_S1.png", plot = hp2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
-###plot top 10 most abundant genera
-ps.t <- transform_sample_counts(ps.glom, function(OTU) OTU/sum(OTU))
-#find top 10
-top10 <- names(sort(taxa_sums(ps.t), decreasing=TRUE))[1:10]
-#one is NA at genus level - discount for this plot as it may represent several genera within the family
-dfpst<-as.data.frame(tax_table(ps.t)); dfpst2<-(filter(dfpst, row.names(dfpst) %in% top10))
-top10 <- names(sort(taxa_sums(ps.t), decreasing=TRUE))[1:12]
-top10 <- top10[! top10 %in% c('ASV28', 'ASV91')]
-dfpst<-as.data.frame(tax_table(ps.t)); dfpst2<-(filter(dfpst, row.names(dfpst) %in% top10)); dfpst2 #no more NAs
-top10_ps <- prune_taxa(top10, ps.t)
-top10 <- names(sort(taxa_sums(top10_ps), decreasing=TRUE))
-mps.t<-psmelt(ps.t)
-mps.t[!mps.t$OTU %in% top10, ]$Genus<-"Other"
-unique(mps.t[mps.t$OTU %in% top10, ]$Genus)
-mps.t[which(is.na(mps.t$Genus)),]$Genus
-getPalette = colorRampPalette(brewer.pal(11, "Set1"))
-#to avoid most abundant genera being too similar in colour, randomise order
-g.df<-as.data.frame(unique(mps.t$Genus))
-set.seed(100)
-g.df<-g.df[sample(nrow(g.df)),]
-g.df
-#manually change some colours for aesthetics
-GenusList<-c("Massilia","Herminiimonas", "Kosakonia", "Acidovorax", "Bacillus","Pseudomonas", "Brevibacillus", "Pantoea", "Chryseobacterium", "Flavobacterium", "Other")
-GenusPalette = getPalette(length(GenusList))
-names(GenusPalette) = GenusList
-GenusPalette["NA"] <- "grey55"
-GenusPalette["Other"] <- "grey20"
-GenusPalette["Bacillus"] <- "olivedrab3"
-GenusPalette["Pantoea"] <- "tomato"
-GenusPalette["Flavobacterium"] = "skyblue3" 
-GenusPalette["Brevibacillus"] = "gold3" 
-GenusPalette["Chryseobacterium"] = "darkred" 
-GenusPalette["Massilia"] = "pink4" 
-GenusPalette["Pseudomonas"] = "orange" 
-GenusPalette["Kosakonia"] = "plum" 
-GenusPalette
-legend.order<-c(sort(GenusList[1:9]), GenusList[10:11])
-#plot with nested facets
-mps.t[which(mps.t$Genotype_name == "CS Carmagnola"),]$Genotype_name <- "CS"
-mps.t[which(mps.t$Genotype_name == "Eletta Campana"),]$Genotype_name <- "Eletta C."
-mps.t[which(grepl("Bial", mps.t$Genotype_name, fixed = TRUE)),]$Genotype_name <- "Bialobrzeskie"
-hg2<-ggplot(mps.t, aes(fill=Genus, x=Sample_number, y=Abundance)) +
-  theme_minimal() +
-  theme(axis.ticks.x = element_line(linewidth = 0.1), 
-        axis.ticks.y = element_line(linewidth = 0,1),
-        axis.ticks.length = unit(2, "pt")) +
-  facet_nested_wrap(~Supplier + Genotype_name, nrow = 2) +
-  theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
-        strip.text.x = element_text(size = 12)) +
-  geom_bar(position = "fill", stat="identity") +
-  scale_y_continuous(labels = function(x) x*100, limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
-  theme(legend.text = element_text(size = 14)) + 
-  theme(legend.title = element_text(size = 14, face = "bold")) + 
-  theme(legend.position = "bottom", legend.box.spacing = margin(-10)) +
-  theme(legend.key.size=unit(14,"point")) +
-  scale_fill_manual(values= GenusPalette, breaks=legend.order) +
-  scale_x_discrete(labels = NULL, breaks = NULL) + labs(x = "") +
-  ylab("Relative abundance (%)") +
-  theme(axis.title = element_text(size=14, face = "bold")) +
-  theme(axis.text = element_text(size=12)) +
-  guides(fill=guide_legend(ncol=3)); hg2
-#ggsave("Hemp_Genus_barplot_top10_nested_facets.png", plot = hg2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+  ###plot top 10 most abundant genera
+  ps.t <- transform_sample_counts(ps.glom, function(OTU) OTU/sum(OTU)) #relative abundances
+  #find top 10
+  top10 <- names(sort(taxa_sums(ps.t), decreasing=TRUE))[1:10]
+  #some NA at genus level - discount for this plot as it may represent several genera within the family
+  dfpst<-as.data.frame(tax_table(ps.t)); dfpst2<-(filter(dfpst, row.names(dfpst) %in% top10))
+  top10 <- names(sort(taxa_sums(ps.t), decreasing=TRUE))[1:12]
+  top10 <- top10[! top10 %in% c('ASV28', 'ASV91')]
+  dfpst<-as.data.frame(tax_table(ps.t)); dfpst2<-(filter(dfpst, row.names(dfpst) %in% top10)); dfpst2 #no more NAs
+  top10_ps <- prune_taxa(top10, ps.t)
+  top10 <- names(sort(taxa_sums(top10_ps), decreasing=TRUE))
+  mps.t<-psmelt(ps.t)
+  mps.t[!mps.t$OTU %in% top10, ]$Genus<-"Other"
+  unique(mps.t[mps.t$OTU %in% top10, ]$Genus) #check genera
+  getPalette = colorRampPalette(brewer.pal(11, "Set1"))
+  #to avoid most abundant genera being too similar in colour, randomise order
+  g.df<-as.data.frame(unique(mps.t$Genus))
+  set.seed(100)
+  g.df<-g.df[sample(nrow(g.df)),]
+  GenusList<-c("Massilia","Herminiimonas", "Kosakonia", "Acidovorax", "Bacillus","Pseudomonas", "Brevibacillus", "Pantoea", "Chryseobacterium", "Flavobacterium", "Other")
+  GenusPalette = getPalette(length(GenusList))
+  names(GenusPalette) = GenusList
+  #manually change some colours for aesthetics
+  GenusPalette["Other"] <- "grey20"
+  GenusPalette["Bacillus"] <- "olivedrab3"
+  GenusPalette["Pantoea"] <- "tomato"
+  GenusPalette["Flavobacterium"] = "skyblue3" 
+  GenusPalette["Brevibacillus"] = "gold3" 
+  GenusPalette["Chryseobacterium"] = "darkred" 
+  GenusPalette["Massilia"] = "pink4" 
+  GenusPalette["Pseudomonas"] = "orange" 
+  GenusPalette["Kosakonia"] = "plum" 
+  GenusPalette
+  #ensure genera (including legend labels) are plotted in alphabetical order, with "other" at the end
+  legend.order<-c(sort(GenusList[1:10]), GenusList[11])
+  mps.t$Genus <- factor(mps.t$Genus, levels=legend.order)
+  #plot with nested facets
+  mps.t[which(mps.t$Genotype_name == "CS Carmagnola"),]$Genotype_name <- "CS"
+  mps.t[which(mps.t$Genotype_name == "Eletta Campana"),]$Genotype_name <- "Eletta C."
+  mps.t[which(grepl("Bial", mps.t$Genotype_name, fixed = TRUE)),]$Genotype_name <- "Bialobrzeskie"
+  hg2<-ggplot(mps.t, aes(fill=Genus, x=Sample_number, y=Abundance)) +
+    theme_minimal() +
+    theme(axis.ticks.x = element_line(linewidth = 0.1), 
+          axis.ticks.y = element_line(linewidth = 0,1),
+          axis.ticks.length = unit(2, "pt")) +
+    facet_nested_wrap(~Supplier + Genotype_name, nrow = 2) +
+    theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
+          strip.text.x = element_text(size = 12)) +
+    geom_bar(position = "fill", stat="identity") +
+    scale_y_continuous(labels = function(x) x*100, limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
+    theme(legend.text = element_text(size = 14)) + 
+    theme(legend.title = element_text(size = 14, face = "bold")) + 
+    theme(legend.position = "bottom", legend.box.spacing = margin(-10)) +
+    theme(legend.key.size=unit(14,"point")) +
+    scale_fill_manual(values= GenusPalette, breaks=legend.order) +
+    scale_x_discrete(labels = NULL, breaks = NULL) + labs(x = "") +
+    ylab("Relative abundance (%)") +
+    theme(axis.title = element_text(size=14, face = "bold")) +
+    theme(axis.text = element_text(size=12)) +
+    guides(fill=guide_legend(ncol=3)); hg2
+#ggsave("Figure_1", plot = hg2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
 ############################################################
@@ -809,7 +822,6 @@ ps<-readRDS("Hemp_ps_processed_step5_readyForAnalysis.rds")
 library(phyloseq.extended)
 p <- ggrare(ps, step = 1000, color = "Genotype_name", se = FALSE)  +
   ylab("ASV richness"); p #ASV richness
-#ggsave("Hemp_diversity_alpha_rarefaction.png", plot = p, device = png, height = 15, width = 20, units = "cm", limitsize = TRUE)
 
 #obtain min read count to inform rarefication
 ps.rc<-as.data.frame(sample_sums(ps)); colnames(ps.rc)<-"read.count"
@@ -829,7 +841,6 @@ rps_obs_hist <- ggplot(data = data_rps, aes(x = Observed)) +
   xlab("Observed ASVs") +
   ylab("# samples") +
   ggtitle("ASV richness per sample"); rps_obs_hist
-#ggsave("Hemp_diversity_alpha__observedASVs_histogram.png", plot = rps_obs_hist, device = "png", units = "cm", height = 10, width = 10)
 #summary stats on ASV richness and Shannon index
 median(data_rps$Observed); mean(data_rps$Observed); min(data_rps$Observed); max(data_rps$Observed)
 median(data_rps$Shannon); mean(data_rps$Shannon); min(data_rps$Shannon); max(data_rps$Shannon)
@@ -904,7 +915,6 @@ ggobs<-ggplot(Data1,
         legend.text = element_text(size = 12)) +
   scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
   scale_y_continuous(breaks = seq(0, 200, 20), expand = expansion(mult = c(0,0.15))); ggobs
-#ggsave("Hemp_diversity_alpha_richness_ASV.png", plot = last_plot(), device = png, height = 10, width = 15, units = "cm", limitsize = TRUE)
 
 ###shannons index
 ##stats tests
@@ -973,7 +983,6 @@ ggshan<-ggplot(Data3,
         legend.text = element_text(size = 12)) +
   scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
   scale_y_continuous(breaks = seq(0, 3.5, 0.5), expand = expansion(mult = c(0,0.15))); ggshan
-#ggsave("Hemp_diversity_alpha_Shannon_ASV.png", plot = last_plot(), device = png, height = 15, width = 12, units = "cm", limitsize = TRUE)
 
 
 ###Faith's phylogenetic diversity
@@ -1044,11 +1053,10 @@ ggpd<-ggplot(Data4, aes(x = reorder(Genotype_name,-PD, FUN = mean), y = PD, fill
         legend.text = element_text(size = 12)) +
   scale_y_continuous(breaks = seq(0, 20, 2), expand = expansion(mult = c(0,0.15))) +
   scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")); ggpd
-#ggsave("Hemp_diversity_alpha_PD.png", plot = last_plot(), device = png, height = 15, width = 12, units = "cm", limitsize = TRUE)
 
 ###plot all diversity metrics together
 plot_grid(ggobs, ggshan, ggpd, ncol = 1, scale = 0.90, labels = "auto", label_size = 14, label_fontface = "bold")
-#ggsave("Hemp_diversity_alpha_richnessShannonPD.png", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+#ggsave("Figure_2", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
 ############################################################
