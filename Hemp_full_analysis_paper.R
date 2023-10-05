@@ -311,7 +311,6 @@ g3<-ggplot(data = ps.no.c.m.rc, aes(y=read.count)) +
   ggtitle("Chloroplasts and mitochondria removed"); g3
 library(cowplot)
 plot_grid(g1, g2, g3, ncol = 3)
-#ggsave("Read_count_after_organelle_removals.png", plot = last_plot(), device = "png", units = "cm", width = 32, height = 12)
 #stats
 mean(ps.rc$read.count)
 mean(ps.no.c.rc$read.count)
@@ -442,7 +441,6 @@ ggplot(data = ps.rc, aes(x=Sample_number, y=read.count)) +
   facet_grid(~Genotype) +
   ggtitle("Hemp - Read counts per sample") +
   scale_x_discrete(labels = NULL, breaks = NULL) + labs(x = "")
-#ggsave(filename = "Hemp_readcounts_by_genotype.png", plot = last_plot(), device = "png", units = "cm", width = 100, height = 20)
 
 ###H06 and H13 have much lower read counts across all replicates than other genotypes
 #remove these to improve data quality
@@ -587,7 +585,7 @@ ggplot(df, aes(x=No_taxa, y=Mean_proportion_of_community_represented)) +
   ylab("Mean proportion of community\nrepresented by subset of genera (%)") +
   scale_y_continuous(labels = function(x) x*100, limits = c(0.2,1), breaks = seq(0.2, 1, by = 0.2)) +
   scale_x_continuous(limits = c(0,100, breaks = seq(0,100,by=20)))
-#ggsave("Hemp_analysis_representation_by_number_of_top_taxa_by_mean_abundance.png", plot = last_plot(), device = "png", units = "cm", width = 15, height = 10)
+ggsave("Figure_S2.png", plot = last_plot(), device = "png", units = "cm", width = 15, height = 10)
 ##stats on top 3 genera
 top3<-p.mm$OTU[1:3]
 g.ps.core<-prune_taxa(top3, ps.glom)
@@ -734,7 +732,7 @@ hp2<-ggplot(mps.t.p, aes(fill=Phylum, x=Sample_number, y=Abundance)) +
   theme(axis.title = element_text(size=14, face = "bold")) +
   theme(axis.text = element_text(size=12)) +  
   guides(fill=guide_legend(ncol=2)); hp2
-#ggsave("Figure_S1.png", plot = hp2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+ggsave("Figure_S1.png", plot = hp2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
   ###plot top 10 most abundant genera
   ps.t <- transform_sample_counts(ps.glom, function(OTU) OTU/sum(OTU)) #relative abundances
@@ -796,7 +794,7 @@ hp2<-ggplot(mps.t.p, aes(fill=Phylum, x=Sample_number, y=Abundance)) +
     theme(axis.title = element_text(size=14, face = "bold")) +
     theme(axis.text = element_text(size=12)) +
     guides(fill=guide_legend(ncol=3)); hg2
-#ggsave("Figure_1", plot = hg2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+ggsave("Figure_1", plot = hg2, device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
 ############################################################
@@ -1056,7 +1054,7 @@ ggpd<-ggplot(Data4, aes(x = reorder(Genotype_name,-PD, FUN = mean), y = PD, fill
 
 ###plot all diversity metrics together
 plot_grid(ggobs, ggshan, ggpd, ncol = 1, scale = 0.90, labels = "auto", label_size = 14, label_fontface = "bold")
-#ggsave("Figure_2", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+ggsave("Figure_2", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
 ############################################################
@@ -1083,3 +1081,23 @@ all_ps_df <- data.frame(sample_data(rps)); colnames(all_ps_df)
 all_ps_df$Supplier[is.na(all_ps_df$Supplier)]<-"Unknown"
 ad_all_ps<-adonis2(all_ps_bray ~ Supplier + Genotype_name, data = all_ps_df, permutations = 10000) 
 print(ad_all_ps)
+#export results as gttable
+  #correct names
+df1_summary<-as.data.frame(apply(ad_all_ps,2,print))
+df1_summary
+df1_summary$Variable <- row.names(df1_summary) 
+df1_summary2 <- df1_summary[, c(6,1:5)]
+df1_summary2$F <- as.numeric(df1_summary2$F)
+df1_summary2$`Pr(>F)` <- as.numeric(df1_summary2$`Pr(>F)`)
+df1_summary2<-df1_summary2 %>% 
+  mutate_if(is.numeric, round, digits = 3)
+df1_summary2$F[is.na(df1_summary2$F)] <- ""
+df1_summary2$`Pr(>F)`[is.na(df1_summary2$`Pr(>F)`)] <- ""
+df1_summary2
+df1_summary3<-df1_summary2
+df1_summary3$Variable<-c("Seed supplier", "Cultivar", "Residual", "Total")
+dt<-tibble(df1_summary3)
+dt$Variable[which(dt$Variable == "Genotype")] <- "Cultivar"
+library(gt)
+gtt<-gt(dt); gtt
+gtsave(gtt, "Table_S2")
