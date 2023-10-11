@@ -885,9 +885,6 @@ Data1 = summarySE(data=data_rps2,
                   "Observed",
                   groupvars="Genotype_name",
                   conf.interval = 0.95)
-Tabla = as.table(Data1$Observed)         
-rownames(Tabla) = Data1$Genotype_name
-Tabla
 offset.v = -2.0     # offsets for CLDs
 offset.h = 0.5
 #obtain info on supplier
@@ -952,9 +949,6 @@ Data3 = summarySE(data=data_rps,
                   "Shannon",
                   groupvars="Genotype_name",
                   conf.interval = 0.95)
-Tabla3 = as.table(Data3$Shannon)         
-rownames(Tabla3) = Data3$Genotype_name
-Tabla3
 offset.v = -2.0     #offsets for CLDs
 offset.h = 0.5
 #obtain info on supplier
