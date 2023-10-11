@@ -1053,7 +1053,13 @@ ggpd<-ggplot(Data4, aes(x = reorder(Genotype_name,-PD, FUN = mean), y = PD, fill
   scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")); ggpd
 
 ###plot all diversity metrics together
-plot_grid(ggobs, ggshan, ggpd, ncol = 1, scale = 0.90, labels = "auto", label_size = 14, label_fontface = "bold")
+library(ggpubr)
+ggarrange(ggobs + xlab("") + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          ggshan + xlab("") + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          ggpd + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          labels = c("a", "b", "c"), vjust = 0.8,
+          ncol=1, 
+          common.legend = TRUE, legend="right")
 ggsave("Figure_2", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
