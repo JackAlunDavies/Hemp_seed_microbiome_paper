@@ -807,246 +807,274 @@ library(microViz)
 library(dplyr)
 library(RColorBrewer)
 library(multcomp)
-library(Rmisc)  
+library(vegan)
 library(FSA)
-library(rcompanion)
-library(Rmisc)  
-library(btools)
-
 
 ps<-readRDS("Hemp_ps_processed_step5_readyForAnalysis.rds")
-
-#use rarefaction curve to inform rarefaction
-library(phyloseq.extended)
-p <- ggrare(ps, step = 1000, color = "Genotype_name", se = FALSE)  +
-  ylab("ASV richness"); p #ASV richness
 
 #obtain min read count to inform rarefication
 ps.rc<-as.data.frame(sample_sums(ps)); colnames(ps.rc)<-"read.count"
 min(ps.rc$read.count) #21667
-hist(ps.rc$read.count)
 
-#rarefy to min read count
-rps<-rarefy_even_depth(ps, replace = FALSE, sample.size = 21667, rngseed = 100)
+#vegan::rarefy to obtain richness estimates
+otu<-as.data.frame(otu_table(ps))
+colnames(otu)
+rownames(otu)
+class(otu)
+str(otu)
+rotu<-rarefy(otu, min(ps.rc$read.count)) %>% 
+  as_tibble(rownames = "Sample")
+names(rotu)<-c("Sample", "ASV_richness")
+median(rotu$ASV_richness)
+mean(rotu$ASV_richness)
 
-#calculate ASV richness and Shannon index
-table_rps <- estimate_richness(rps, split = TRUE, measures = c("Observed", "Shannon"))
-data_rps <- cbind(sample_data(rps), table_rps)
-data_rps[which(data_rps$Genotype_name=="CS Carmagnola"),]$Genotype_name <- "CS"
-rps_obs_hist <- ggplot(data = data_rps, aes(x = Observed)) +
-  geom_histogram(binwidth = 5) +
-  theme_classic() +
-  xlab("Observed ASVs") +
-  ylab("# samples") +
-  ggtitle("ASV richness per sample"); rps_obs_hist
-#summary stats on ASV richness and Shannon index
-median(data_rps$Observed); mean(data_rps$Observed); min(data_rps$Observed); max(data_rps$Observed)
-median(data_rps$Shannon); mean(data_rps$Shannon); min(data_rps$Shannon); max(data_rps$Shannon)
+#rrarefy loop with 1000 iterations, calculating shannon and Faith's PD for ASV table produced in each iteration 
+set.seed(NULL)
+rrlist <- vector(mode = "list", length =  1000) 
+shannonlist <- vector(mode = "list", length =  1000)
+pddf <- vector(mode = "list", length =  1000)
+pdlist <- vector(mode = "list", length =  1000)
+library(picante)
+for (i in seq_along(rrlist)) {
+  rrlist[[i]] <- rrarefy(otu, min(ps.rc$read.count)) #rarefy once randomly to min read count to produce new asv table 
+  shannonlist[[i]] <- diversity(rrlist[[i]], index="shannon") #calculate shannon index for each sample for individual iteration of rrarefy
+  pddf[[i]] <- pd(rrlist[[i]], tree = phy_tree(ps), include.root = F) #do the same for PD
+  pdlist[[i]] <- pddf[[i]]$PD; names(pdlist[[i]]) <- rownames(pddf[[i]])
+  #rrlist[[i]] <- as.matrix(rrlist[[i]])
+}
 
-###ASV richness
-##statistical tests - anova
-data_rps$Genotype_name<-as.factor(data_rps$Genotype_name)
-aov.go<-aov(data=data_rps, Observed ~ Genotype_name)
+#calculate mean shannon and PD value for each sample, and reinstate sample names
+shannonpd.df<-data.frame(Sample = rownames(otu), Shannon = colMeans(do.call(rbind, shannonlist)),
+                         PD = colMeans(do.call(rbind, pdlist)))
+
+#merge with richness data
+mg<-merge(rotu, shannonpd.df, by=c("Sample"))
+metadata<-data.frame(sample_data(ps))
+metadata$Sample<-rownames(metadata); rownames(metadata)<-NULL 
+mg<-merge(mg, metadata, by=c("Sample"))
+head(mg)
+
+#######################################
+###########stats tests - relationship between genotype and alpha diversity
+colnames(mg)
+data_ps<-mg[,c(1:4,10,13)]
+sapply(data_ps, class)
+data_ps[which(data_ps$Genotype_name=="CS Carmagnola"),]$Genotype_name <- "CS"
+data_ps$Genotype_name<-as.factor(data_ps$Genotype_name)
+data_ps$Supplier<-as.factor(data_ps$Supplier)
+
+#####richness
+##effect of genotype - anovas
+aov.go<-aov(data=data_ps, ASV_richness ~ Genotype_name)
 summary(aov.go)
 #check assmuptions
-  #normality 
+#normality
 qqnorm(aov.go$residuals)
-qqline(aov.go$residuals)
-  #variance
+qqline(aov.go$residuals) 
+#variance
 plot(aov.go, 1) 
-##pairwise comparisons - multcomp package
-  #reorder by mean so that CLDs will be in right order in plot
-    #get order of richness
-order_obs<- data_rps %>%
+#pairwise comparisons 
+#reorder by mean so that letters will be in right order
+#get order of richness
+order_obs<- data_ps %>%
   group_by(Genotype_name) %>%
-  dplyr::summarize(Mean.richness = mean(Observed, na.rm=FALSE))
+  dplyr::summarize(Mean.richness = mean(ASV_richness, na.rm=FALSE))
 list_order_obs<-order_obs[order(order_obs$Mean.richness, decreasing = TRUE),]$Genotype_name; list_order_obs
-    #change factor level order
-data_rps2 <- data_rps
-data_rps2$Genotype_name<-as.factor(data_rps2$Genotype_name)
-data_rps2$Genotype_name<-factor(data_rps2$Genotype_name, levels = list_order_obs)
+#change factor level order
+data_ps2 <- data_ps
+data_ps2$Genotype_name<-factor(data_ps2$Genotype_name, levels = list_order_obs)
 #pairwise comparisons
-model<-lm(Observed ~ Genotype_name, data=data_rps2)
-anova(model) 
-summary(model) 
-mc = glht(model,
-          mcp(Genotype_name = "Tukey"))
-mcs = summary(mc, test=adjusted("BH"))
-mcs
-#obtain CLDs
-model.sigs<-cld(mcs,
-                level=0.05,
-                decreasing=FALSE) 
-df.cld<-as.data.frame(model.sigs$mcletters$Letters); colnames(df.cld)<-"Letters"
-df.cld$Genotype_name <- rownames(df.cld); rownames(df.cld) <- NULL; df.cld 
-richness_letters<-df.cld$Letters
-#obtain standard errors
-Data1 = summarySE(data=data_rps2,
-                  "Observed",
-                  groupvars="Genotype_name",
-                  conf.interval = 0.95)
-offset.v = -2.0     # offsets for CLDs
-offset.h = 0.5
-#obtain info on supplier
-Data1$Supplier<-data_rps2[match(paste(Data1$Genotype_name),paste(data_rps2$Genotype_name)),]$Supplier
-#plot
-ggobs<-ggplot(Data1,
-              aes(x=reorder(Genotype_name,-Observed,FUN = mean), y = Observed, fill = Supplier,
-                  ymax=90, ymin=0))+
-  geom_bar(stat="identity",
-           width = 0.7)  +
-  geom_errorbar(aes(ymax=Observed+se, ymin=Observed-se),
-                width=0.0, linewidth=0.5, color="black")  +
-  geom_text(aes(label=richness_letters,
-                hjust=offset.h, vjust=offset.v), size = 4) +             
+library(agricolae)
+mcs <- HSD.test(aov.go, trt = 'Genotype_name')
+df.cld<-mcs$groups; df.cld$Genotype_name <-rownames(df.cld); rownames(df.cld)<-NULL; names(df.cld)[names(df.cld) == 'groups'] <- 'Letters'
+
+ggobs<-ggplot(data_ps2, aes(x=reorder(Genotype_name,-ASV_richness,FUN = mean), y = ASV_richness, color = Supplier)) +
+  geom_jitter(alpha = 0.3, colour = "grey30", width = 0.1, height = 0.05, size = 2) +
+  stat_summary(fun = mean, 
+               fun.min = function(x) mean(x) - sd(x), 
+               fun.max = function(x) mean(x) + sd(x),
+               geom = 'errorbar',  width = 0.5, linewidth = 1) +
+  stat_summary(fun = mean, fun.min = mean, fun.max = mean,
+               geom = 'errorbar',  width = 0.75, linewidth = 1) +
+  geom_text(data = df.cld, aes(label = Letters, y = 225, x = Genotype_name),
+            size = 4.5, color = "black", angle = 45) +             
   labs(x = "Hemp genotype",
        y = "ASV richness")  +
   theme_classic()  +
   theme(panel.grid.major.x = element_blank(),
         axis.title.y = element_text(vjust= 1.8, size = 14, face = "bold"),
         axis.title.x = element_text(vjust= -0.5, size = 14, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+        axis.text.y = element_text(size = 14),
         legend.title = element_text(size = 14, face = "bold"),
-        legend.text = element_text(size = 12)) +
-  scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
-  scale_y_continuous(breaks = seq(0, 200, 20), expand = expansion(mult = c(0,0.15))); ggobs
+        legend.text = element_text(size = 14)) +
+  scale_color_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
+  scale_y_continuous(limits=c(40, 225), breaks = seq(0, 220, 20), expand = expansion(mult = c(0,0.05))) +
+  theme(plot.margin = unit(c(0,0,0,0.5), "cm")); ggobs
 
-###shannons index
-##stats tests
-data_rps$Genotype_name<-as.factor(data_rps$Genotype_name)
-aov.gs<-aov(data=data_rps, Shannon ~ Genotype_name)
+#####shannon
+##effect of genotype - anovas
+aov.gs<-aov(data=data_ps, Shannon ~ Genotype_name)
 summary(aov.gs)
 #check assmuptions
-  #normality
+#normality
 qqnorm(aov.gs$residuals)
 qqline(aov.gs$residuals) 
-shapiro.test(data_rps$Shannon) 
-  #variance
-plot(aov.gs, 1) #no clear relationship
+#variance
+plot(aov.gs, 1) 
 ##need to do non-parametric test
-  #kruskal wallis test
-kruskal.test(Shannon ~ Genotype_name, data = data_rps)
+#kruskal wallis test
+kruskal.test(Shannon ~ Genotype_name, data = data_ps)
 #cldList below doesn't like names with hyphen so changing one name - restored later
-data_rps3<-data_rps
-data_rps3$Genotype_name<-as.character(data_rps3$Genotype_name)
-data_rps3[which(data_rps3$Genotype_name == "Uso-31"),]$Genotype_name <- "Uso31"
-data_rps3$Genotype_name<-as.factor(data_rps3$Genotype_name)
+data_ps3<-data_ps
+data_ps3$Genotype_name<-as.character(data_ps3$Genotype_name)
+data_ps3[which(data_ps3$Genotype_name == "Uso-31"),]$Genotype_name <- "Uso31"
+data_ps3$Genotype_name<-as.factor(data_ps3$Genotype_name)
+#dunnTest below forces alphabtical ordering, leading to illogical assignment of CLDs later
+#adding prefixes to Genotype_name specifying rank in terms of mean Shannon
+data_ps3$Genotype_name
+order_Shannon<- data_ps3 %>%
+  group_by(Genotype_name) %>%
+  dplyr::summarize(Mean.Shannon = mean(Shannon, na.rm=FALSE))
+list_order_Shannon<-order_Shannon[order(order_Shannon$Mean.Shannon, decreasing = TRUE),]$Genotype_name; list_order_Shannon
+concat.df<-data.frame(Genotype_name = list_order_Shannon, Rank = head(letters, 16), Concat = paste0(head(letters, 16), list_order_Shannon))
+data_ps3$Concat<-concat.df[match(paste(data_ps3$Genotype_name),paste(concat.df$Genotype_name)),]$Concat
 #dunn test
-dt<-dunnTest(Shannon ~ Genotype_name, data = data_rps3,
+dt<-dunnTest(Shannon ~ Concat, data = data_ps3,
              method="bh", list = TRUE)
 print(dt, dunn.test.results = TRUE)
 #restore name
-data_rps3$Genotype_name<-as.character(data_rps3$Genotype_name)
-data_rps3[which(data_rps3$Genotype_name == "Uso31"),]$Genotype_name <- "Uso-31"
-data_rps3$Genotype_name<-as.factor(data_rps3$Genotype_name)
+data_ps3$Genotype_name<-as.character(data_ps3$Genotype_name)
+data_ps3[which(data_ps3$Genotype_name == "Uso31"),]$Genotype_name <- "Uso-31"
+data_ps3$Genotype_name<-as.factor(data_ps3$Genotype_name)
 #obtain CLDs
-shannon_letters<-cldList(comparison = dt$res$Comparison,
+library(rcompanion)
+Shannon_letters<-cldList(comparison = dt$res$Comparison,
                          p.value    = dt$res$P.adj,
                          threshold  = 0.05)
-shannon_letters<-shannon_letters$Letter
-#get standard errors
-Data3 = summarySE(data=data_rps,
-                  "Shannon",
-                  groupvars="Genotype_name",
-                  conf.interval = 0.95)
-offset.v = -2.0     #offsets for CLDs
-offset.h = 0.5
-#obtain info on supplier
-Data3$Supplier<-data_rps[match(paste(Data3$Genotype_name),paste(data_rps$Genotype_name)),]$Supplier
-#plot
-ggshan<-ggplot(Data3,
-               aes(x=reorder(Genotype_name,-Shannon,FUN = mean), y = Shannon, fill = Supplier,
-                   ymax=3, ymin=0))+
-  geom_bar(stat="identity",
-           width = 0.7)  +
-  geom_errorbar(aes(ymax=Shannon+se, ymin=Shannon-se),
-                width=0.0, linewidth=0.5, color="black")  +
-  geom_text(aes(label=shannon_letters, 
-                hjust=offset.h, vjust=offset.v), 
-            size = 4, angle = 0) +           
+Shannon_letters$Group
+colnames(Shannon_letters)<-c("Genotype_name", "Letters", "MonoLetter")
+Shannon_letters$Genotype_name<-substr(Shannon_letters$Genotype_name, 2, nchar(Shannon_letters$Genotype_name)) #remove prefixes added for dunnTest
+#need to set order of levels here - as geom_text seems to reorder x axis in plot below
+#first need to restore lost spaces in genotype names - caused by cldList
+Shannon_letters<-Shannon_letters[order(Shannon_letters$Genotype_name),]
+Shannon_letters$Genotype_name<-sort(levels(data_ps3$Genotype_name))
+#get order of mean Shannon
+order_Shannon<- data_ps3 %>%
+  group_by(Genotype_name) %>%
+  dplyr::summarize(Mean.Shannon = mean(Shannon, na.rm=FALSE))
+list_order_Shannon<-order_Shannon[order(order_Shannon$Mean.Shannon, decreasing = TRUE),]$Genotype_name; list_order_Shannon
+#want in descending order of mean
+Shannon_letters$Genotype_name<-factor(Shannon_letters$Genotype_name, levels = list_order_Shannon)
+Shannon_letters$Genotype_name
+
+ggshan<-ggplot(data_ps2, aes(x=reorder(Genotype_name,-Shannon,FUN = mean), y = Shannon, color = Supplier)) +
+  geom_jitter(alpha = 0.3, colour = "grey30", width = 0.1, height = 0.05, size = 2) +
+  stat_summary(fun = mean, 
+               fun.min = function(x) mean(x) - sd(x), 
+               fun.max = function(x) mean(x) + sd(x),
+               geom = 'errorbar',  width = 0.5, linewidth = 1) +
+  stat_summary(fun = mean, fun.min = mean, fun.max = mean,
+               geom = 'errorbar',  width = 0.75, linewidth = 1) +
+  geom_text(data = Shannon_letters, aes(label = Letters, y = 3.5, x = Genotype_name),
+            size = 4.5, color = "black", angle = 45) +             
   labs(x = "Hemp genotype",
        y = "Shannon diversity index")  +
   theme_classic()  +
   theme(panel.grid.major.x = element_blank(),
         axis.title.y = element_text(vjust= 1.8, size = 14, face = "bold"),
         axis.title.x = element_text(vjust= -0.5, size = 14, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+        axis.text.y = element_text(size = 14),
         legend.title = element_text(size = 14, face = "bold"),
-        legend.text = element_text(size = 12)) +
-  scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
-  scale_y_continuous(breaks = seq(0, 3.5, 0.5), expand = expansion(mult = c(0,0.15))); ggshan
+        legend.text = element_text(size = 14)) +
+  scale_color_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
+  scale_y_continuous(limits=c(0,3.6), breaks = seq(0, 3.5, 0.5), expand = expansion(mult = c(0,0.05))) +
+  theme(plot.margin = unit(c(0,0,0,0.5), "cm")); ggshan
 
-
-###Faith's phylogenetic diversity
-###stats tests - anova
-#calculate Faith's PD
-table_PD<-estimate_pd(rps)
-pdsd <- cbind(sample_data(rps), table_PD)
-pdsd[which(pdsd$Genotype_name=="CS Carmagnola"),]$Genotype_name <- "CS"
-pdsd$Genotype_name<-as.factor(pdsd$Genotype_name)
-aov.pd<-aov(data=pdsd, PD ~ Genotype_name)
+#####PD
+###stats tests
+##effect of genotype - anovas
+aov.pd<-aov(data=data_ps, PD ~ Genotype_name)
 summary(aov.pd)
 #check assmuptions
-  #normality
+#normality
 qqnorm(aov.pd$residuals)
 qqline(aov.pd$residuals) 
 #variance
 plot(aov.pd, 1) 
-###pairwise comparisons - multcomp package
-#reorder by mean so that letters will be in right order
-#get order of richness
-order_pd<- pdsd %>%
+##need to do non-parametric test
+#kruskal wallis test
+kruskal.test(PD ~ Genotype_name, data = data_ps)
+#cldList below doesn't like names with hyphen so changing one name - restored later
+data_ps3<-data_ps
+data_ps3$Genotype_name<-as.character(data_ps3$Genotype_name)
+data_ps3[which(data_ps3$Genotype_name == "Uso-31"),]$Genotype_name <- "Uso31"
+data_ps3$Genotype_name<-as.factor(data_ps3$Genotype_name)
+#dunnTest below forces alphabtical ordering, leading to illogical assignment of CLDs later
+#adding prefixes to Genotype_name specifying rank in terms of mean PD
+data_ps3$Genotype_name
+order_PD<- data_ps3 %>%
   group_by(Genotype_name) %>%
   dplyr::summarize(Mean.PD = mean(PD, na.rm=FALSE))
-list_order_pd<-order_pd[order(order_pd$Mean.PD, decreasing = TRUE),]$Genotype_name; list_order_pd
-#change factor level order - to ensure CLDs are alphabetical
-pdsd2 <- pdsd
-pdsd2$Genotype_name<-as.factor(pdsd2$Genotype_name)
-pdsd2$Genotype_name<-factor(pdsd2$Genotype_name, levels = list_order_pd)
-model<-lm(PD ~ Genotype_name, data=pdsd2)
-anova(model)
-summary(model)
-#pairwise comparisons
-mc = glht(model,
-          mcp(Genotype_name = "Tukey"))
-mcs = summary(mc, test=adjusted("BH"))
-mcs
+list_order_PD<-order_PD[order(order_PD$Mean.PD, decreasing = TRUE),]$Genotype_name; list_order_PD
+concat.df<-data.frame(Genotype_name = list_order_PD, Rank = head(letters, 16), Concat = paste0(head(letters, 16), list_order_PD))
+data_ps3$Concat<-concat.df[match(paste(data_ps3$Genotype_name),paste(concat.df$Genotype_name)),]$Concat
+#dunn test
+dt<-dunnTest(PD ~ Concat, data = data_ps3,
+             method="bh", list = TRUE)
+print(dt, dunn.test.results = TRUE)
+#restore name
+data_ps3$Genotype_name<-as.character(data_ps3$Genotype_name)
+data_ps3[which(data_ps3$Genotype_name == "Uso31"),]$Genotype_name <- "Uso-31"
+data_ps3$Genotype_name<-as.factor(data_ps3$Genotype_name)
 #obtain CLDs
-model.sigs<-cld(mcs,
-                level=0.05,
-                decreasing=FALSE) 
-df.cld<-as.data.frame(model.sigs$mcletters$Letters); colnames(df.cld)<-"Letters"
-df.cld$Genotype_name <- rownames(df.cld); rownames(df.cld) <- NULL; df.cld 
-pd_letters<-df.cld$Letters
-#obtain standard errors
-Data4 = summarySE(data=pdsd2,
-                  "PD",
-                  groupvars="Genotype_name",
-                  conf.interval = 0.95)
-#obtain info on supplier
-Data4$Supplier<-pdsd2[match(paste(Data4$Genotype_name),paste(pdsd2$Genotype_name)),]$Supplier
-#plot
-ggpd<-ggplot(Data4, aes(x = reorder(Genotype_name,-PD, FUN = mean), y = PD, fill = Supplier,
-                        ymax = 12, ymin = 0)) + 
-  geom_bar(stat="identity",
-           width = 0.7) +
-  geom_errorbar(aes(ymax=PD+se, ymin=PD-se),
-                width=0.0, linewidth=0.5, color="black")  +
-  geom_text(aes(label=pd_letters,
-                hjust=offset.h, vjust=offset.v), size = 4) +
+library(rcompanion)
+PD_letters<-cldList(comparison = dt$res$Comparison,
+                    p.value    = dt$res$P.adj,
+                    threshold  = 0.05)
+PD_letters$Group
+colnames(PD_letters)<-c("Genotype_name", "Letters", "MonoLetter")
+PD_letters$Genotype_name<-substr(PD_letters$Genotype_name, 2, nchar(PD_letters$Genotype_name)) #remove prefixes added for dunnTest
+#need to set order of levels here - as geom_text seems to reorder x axis in plot below
+#first need to restore lost spaces in genotype names - caused by cldList
+PD_letters<-PD_letters[order(PD_letters$Genotype_name),]
+PD_letters$Genotype_name<-sort(levels(data_ps3$Genotype_name))
+#get order of mean PD
+order_PD<- data_ps3 %>%
+  group_by(Genotype_name) %>%
+  dplyr::summarize(Mean.PD = mean(PD, na.rm=FALSE))
+list_order_PD<-order_PD[order(order_PD$Mean.PD, decreasing = TRUE),]$Genotype_name; list_order_PD
+#want in descending order of mean
+PD_letters$Genotype_name<-factor(PD_letters$Genotype_name, levels = list_order_PD)
+PD_letters$Genotype_name
+
+ggpd<-ggplot(data_ps, aes(x=reorder(Genotype_name,-PD,FUN = mean), y = PD, color = Supplier)) +
+  geom_jitter(alpha = 0.5, colour = "grey30", width = 0.1, height = 0.05, size = 2) +
+  stat_summary(fun = mean, 
+               fun.min = function(x) mean(x) - sd(x), 
+               fun.max = function(x) mean(x) + sd(x),
+               geom = 'errorbar',  width = 0.5, linewidth = 1) +
+  stat_summary(fun = mean, fun.min = mean, fun.max = mean,
+               geom = 'errorbar',  width = 0.75, linewidth = 1) +
+  geom_text(data = PD_letters, aes(label = Letters, y = 17.5, x = Genotype_name),
+            size = 4.5, color = "black", angle = 45) +             
   labs(x = "Hemp genotype",
        y = "Faith's PD index")  +
   theme_classic()  +
   theme(panel.grid.major.x = element_blank(),
         axis.title.y = element_text(vjust= 1.8, size = 14, face = "bold"),
         axis.title.x = element_text(vjust= -0.5, size = 14, face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+        axis.text.y = element_text(size = 14),
         legend.title = element_text(size = 14, face = "bold"),
-        legend.text = element_text(size = 12)) +
-  scale_y_continuous(breaks = seq(0, 20, 2), expand = expansion(mult = c(0,0.15))) +
-  scale_fill_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")); ggpd
+        legend.text = element_text(size = 14)) +
+  scale_color_discrete(labels=c("CREA", "HEMPit", "Hempoint", "PSTS", "Vandinter Semo")) +
+  scale_y_continuous(limits = c(2,18), breaks = seq(2, 18, 2), expand = expansion(mult = c(0,0.05)))  +
+  theme(plot.margin = unit(c(0,0,0.5,0.5), "cm")); ggpd
 
-###plot all diversity metrics together
+plot_grid(ggobs, ggshan, ggpd, ncol = 1, scale = 0.90, labels = "auto", label_size = 14, label_fontface = "bold")
+
 library(ggpubr)
 ggarrange(ggobs + xlab("") + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
           ggshan + xlab("") + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
@@ -1054,7 +1082,8 @@ ggarrange(ggobs + xlab("") + theme(legend.margin=margin(l = 1, r = 1, unit='cm')
           labels = c("a", "b", "c"), vjust = 0.8,
           ncol=1, 
           common.legend = TRUE, legend="right")
-ggsave("Figure_2", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+
+ggsave("Figure_2.png", plot = last_plot(), device = png, height = 32, width = 24, units = "cm", limitsize = TRUE, bg = "white")
 
 
 ############################################################
@@ -1070,34 +1099,186 @@ ps<-readRDS("Hemp_ps_processed_step5_readyForAnalysis.rds")
 
 ps
 
-#using proportions rather than rarefication 
 rps <- microbiome::transform(ps, "compositional")
-#McKnight et al. reports that proportions work best for these analyses
-  #DOI: 10.1111/2041-210X.13115
 
-##PERMANOVA - supplier and genotype
-all_ps_bray <- phyloseq::distance(rps, method = "bray") 
-all_ps_df <- data.frame(sample_data(rps)); colnames(all_ps_df)
-all_ps_df$Supplier[is.na(all_ps_df$Supplier)]<-"Unknown"
-ad_all_ps<-adonis2(all_ps_bray ~ Supplier + Genotype_name, data = all_ps_df, permutations = 10000) 
-print(ad_all_ps)
-#export results as gttable
-  #correct names
-df1_summary<-as.data.frame(apply(ad_all_ps,2,print))
-df1_summary
-df1_summary$Variable <- row.names(df1_summary) 
-df1_summary2 <- df1_summary[, c(6,1:5)]
-df1_summary2$F <- as.numeric(df1_summary2$F)
-df1_summary2$`Pr(>F)` <- as.numeric(df1_summary2$`Pr(>F)`)
-df1_summary2<-df1_summary2 %>% 
-  mutate_if(is.numeric, round, digits = 3)
-df1_summary2$F[is.na(df1_summary2$F)] <- ""
-df1_summary2$`Pr(>F)`[is.na(df1_summary2$`Pr(>F)`)] <- ""
-df1_summary2
-df1_summary3<-df1_summary2
-df1_summary3$Variable<-c("Seed supplier", "Cultivar", "Residual", "Total")
-dt<-tibble(df1_summary3)
-dt$Variable[which(dt$Variable == "Genotype")] <- "Cultivar"
-library(gt)
-gtt<-gt(dt); gtt
-gtsave(gtt, "Table_S2")
+sample_data(rps)$Genotype_name[which(sample_data(rps)$Genotype_name=="CS Carmagnola")]<-"CS"
+
+#set shapes per genotype
+geno_list<-rep(c(19,15,17,18),4); length(geno_list)
+names(geno_list)<-sort(unique(sample_data(rps)$Genotype_name))
+
+#############################################
+###ASV level
+ord.rps <- ordinate(rps, "PCoA", "bray")
+
+#plot by genotype
+library(ggh4x)
+gord<-plot_ordination(rps, ord.rps, type="Sample", color="Genotype_name", shape="Genotype_name") +
+  geom_point(size=4, alpha=0.5) +
+  scale_shape_manual(values = geno_list) +
+  theme_minimal() +
+  theme(axis.ticks.x = element_line(linewidth = 0.1), 
+        axis.ticks.y = element_line(linewidth = 0,1),
+        axis.ticks.length = unit(2, "pt")) +
+  facet_nested_wrap(~Supplier + Genotype_name, ncol = 8) +
+  theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
+        strip.text.x = element_text(size = 8)) +
+  theme(legend.position="none",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size=14, face = "bold"),
+        axis.title = element_text(size=12, face = "bold"),
+        axis.text = element_text(size=8),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5))
+gord$layers<-gord$layers[-1]
+gord$labels$colour <- "Genotype"
+gord$labels$shape <- "Genotype"
+gord
+
+gord2<-plot_ordination(rps, ord.rps, type="Sample", color="Genotype_name", shape="Genotype_name") +
+  geom_point(size=4, alpha=0.5) +
+  scale_shape_manual(values = geno_list) +
+  theme_minimal() +
+  theme(axis.ticks.x = element_line(linewidth = 0.1), 
+        axis.ticks.y = element_line(linewidth = 0,1),
+        axis.ticks.length = unit(2, "pt")) +
+  theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
+        strip.text.x = element_text(size = 8)) +
+  theme(legend.position="none",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size=14, face = "bold"),
+        axis.title = element_text(size=12, face = "bold"),
+        axis.text = element_text(size=8),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5))
+gord2$layers<-gord2$layers[-1]
+gord$labels$colour <- "Genotype"
+gord$labels$shape <- "Genotype"
+gord2
+
+library(ggpubr)
+ggarrange(gord + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          gord2 + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          labels = c("a", "b"), vjust = 0.8,
+          ncol=1, 
+          common.legend = TRUE, legend="right")
+ggsave("Hemp_PCoA_ASVlevel.png", plot = last_plot(), device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+
+
+#############################################
+###genus level
+trps<-tax_glom(rps,taxrank = "Genus", NArm = FALSE)
+ord.rps <- ordinate(trps, "PCoA", "bray")
+
+#plot by genotype
+library(ggh4x)
+gord<-plot_ordination(rps, ord.rps, type="Sample", color="Genotype_name", shape="Genotype_name") +
+  geom_point(size=4, alpha=0.5) +
+  scale_shape_manual(values = geno_list) +
+  theme_minimal() +
+  theme(axis.ticks.x = element_line(linewidth = 0.1), 
+        axis.ticks.y = element_line(linewidth = 0,1),
+        axis.ticks.length = unit(2, "pt")) +
+  facet_nested_wrap(~Supplier + Genotype_name, ncol = 8) +
+  theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
+        strip.text.x = element_text(size = 8)) +
+  theme(legend.position="none",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size=14, face = "bold"),
+        axis.title = element_text(size=12, face = "bold"),
+        axis.text = element_text(size=8),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5))
+gord$layers<-gord$layers[-1]
+gord$labels$colour <- "Genotype"
+gord$labels$shape <- "Genotype"
+gord
+
+geno_list<-rep(c(19,15,17,18),4); length(geno_list)
+names(geno_list)<-sort(unique(sample_data(rps)$Genotype_name))
+
+gord2<-plot_ordination(rps, ord.rps, type="Sample", color="Genotype_name", shape="Genotype_name") +
+  geom_point(size=4, alpha=0.5) +
+  scale_shape_manual(values = geno_list) +
+  theme_minimal() +
+  theme(axis.ticks.x = element_line(linewidth = 0.1), 
+        axis.ticks.y = element_line(linewidth = 0,1),
+        axis.ticks.length = unit(2, "pt")) +
+  theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
+        strip.text.x = element_text(size = 8)) +
+  theme(legend.position="none",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size=14, face = "bold"),
+        axis.title = element_text(size=12, face = "bold"),
+        axis.text = element_text(size=8),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5))
+gord2$layers<-gord2$layers[-1]
+gord$labels$colour <- "Genotype"
+gord$labels$shape <- "Genotype"
+gord2
+
+library(ggpubr)
+ggarrange(gord + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          gord2 + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          labels = c("a", "b"), vjust = 0.8,
+          ncol=1, 
+          common.legend = TRUE, legend="right")
+ggsave("Hemp_PCoA_genuslevel.png", plot = last_plot(), device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
+
+#############################################
+###unifrac
+ord.rps <- ordinate(rps, "PCoA", "wunifrac")
+
+#plot by genotype
+library(ggh4x)
+gord<-plot_ordination(rps, ord.rps, type="Sample", color="Genotype_name", shape="Genotype_name") +
+  geom_point(size=4, alpha=0.5) +
+  scale_shape_manual(values = geno_list) +
+  theme_minimal() +
+  theme(axis.ticks.x = element_line(linewidth = 0.1), 
+        axis.ticks.y = element_line(linewidth = 0,1),
+        axis.ticks.length = unit(2, "pt")) +
+  facet_nested_wrap(~Supplier + Genotype_name, ncol = 8) +
+  theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
+        strip.text.x = element_text(size = 8)) +
+  theme(legend.position="none",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size=14, face = "bold"),
+        #plot.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        #panel.grid.minor = element_blank(),
+        axis.title = element_text(size=12, face = "bold"),
+        axis.text = element_text(size=8),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5))
+gord$layers<-gord$layers[-1]
+gord$labels$colour <- "Genotype"
+gord$labels$shape <- "Genotype"
+gord
+
+geno_list<-rep(c(19,15,17,18),4); length(geno_list)
+names(geno_list)<-sort(unique(sample_data(rps)$Genotype_name))
+
+gord2<-plot_ordination(rps, ord.rps, type="Sample", color="Genotype_name", shape="Genotype_name") +
+  geom_point(size=4, alpha=0.5) +
+  scale_shape_manual(values = geno_list) +
+  theme_minimal() +
+  theme(axis.ticks.x = element_line(linewidth = 0.1), 
+        axis.ticks.y = element_line(linewidth = 0,1),
+        axis.ticks.length = unit(2, "pt")) +
+  theme(strip.background = element_rect(fill = "lightgrey", color = "lightgrey"),
+        strip.text.x = element_text(size = 8)) +
+  theme(legend.position="none",
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size=14, face = "bold"),
+        axis.title = element_text(size=12, face = "bold"),
+        axis.text = element_text(size=8),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5))
+gord2$layers<-gord2$layers[-1]
+gord$labels$colour <- "Genotype"
+gord$labels$shape <- "Genotype"
+gord2
+
+library(ggpubr)
+ggarrange(gord + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          gord2 + theme(legend.margin=margin(l = 1, r = 1, unit='cm')), 
+          labels = c("a", "b"), vjust = 0.8,
+          ncol=1, 
+          common.legend = TRUE, legend="right")
+ggsave("Hemp_PCoA_wunifrac.png", plot = last_plot(), device = png, height = 24, width = 24, units = "cm", limitsize = TRUE, bg = "white")
