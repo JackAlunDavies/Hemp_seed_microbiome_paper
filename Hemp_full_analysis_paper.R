@@ -1150,8 +1150,8 @@ gord2<-plot_ordination(rps, ord.rps, type="Sample", color="Genotype_name", shape
         axis.text = element_text(size=8),
         panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5))
 gord2$layers<-gord2$layers[-1]
-gord$labels$colour <- "Genotype"
-gord$labels$shape <- "Genotype"
+gord2$labels$colour <- "Genotype"
+gord2$labels$shape <- "Genotype"
 gord2
 
 library(ggpubr)
